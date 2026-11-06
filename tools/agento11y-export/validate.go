@@ -1,0 +1,240 @@
+package main
+
+import (
+	"bytes"
+	_ "embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
+)
+
+//go:embed schema.json
+var schemaBytes []byte
+
+// strictJSON also rejects duplicate keys, including inside inert metadata.
+func strictJSON(raw []byte) (any, error) {
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	var value func() (any, error)
+	value = func() (any, error) {
+		token, err := d.Token()
+		if err != nil {
+			return nil, err
+		}
+		delim, ok := token.(json.Delim)
+		if !ok {
+			return token, nil
+		}
+		switch delim {
+		case '{':
+			m := map[string]any{}
+			for d.More() {
+				k, err := d.Token()
+				if err != nil {
+					return nil, err
+				}
+				key, ok := k.(string)
+				if !ok {
+					return nil, errors.New("invalid key")
+				}
+				if _, exists := m[key]; exists {
+					return nil, errors.New("duplicate JSON key")
+				}
+				v, err := value()
+				if err != nil {
+					return nil, err
+				}
+				m[key] = v
+			}
+			_, err = d.Token()
+			return m, err
+		case '[':
+			a := []any{}
+			for d.More() {
+				v, err := value()
+				if err != nil {
+					return nil, err
+				}
+				a = append(a, v)
+			}
+			_, err = d.Token()
+			return a, err
+		default:
+			return nil, errors.New("unexpected delimiter")
+		}
+	}
+	v, err := value()
+	if err != nil {
+		return nil, err
+	}
+	if _, err = d.Token(); err != io.EOF {
+		return nil, errors.New("trailing JSON data")
+	}
+	return v, nil
+}
+
+type artifact struct {
+	SessionID string `json:"session_id"`
+	Agent     struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"agent"`
+	Steps []map[string]any `json:"steps"`
+	Extra struct {
+		Calls extension `json:"llmspec_model_calls"`
+	} `json:"extra"`
+}
+type extension struct {
+	ExecutionID string      `json:"execution_generation_id"`
+	ByteLimit   int64       `json:"capture_byte_limit"`
+	Truncated   bool        `json:"truncated"`
+	Dropped     int         `json:"dropped_calls"`
+	Rejected    int         `json:"rejected_calls"`
+	Calls       []modelCall `json:"calls"`
+}
+type modelCall struct {
+	RequestID      string `json:"request_id"`
+	ExecutionID    string `json:"execution_generation_id"`
+	Ordinal        int    `json:"ordinal"`
+	Step           int    `json:"step_number"`
+	RequestedModel string `json:"requested_model"`
+	Provider       string `json:"runtime_provider"`
+	Model          string `json:"runtime_model"`
+	Response       struct {
+		ID        string `json:"id"`
+		RequestID string `json:"request_id"`
+		Step      int    `json:"step_number"`
+		Model     string `json:"model"`
+		Timestamp string `json:"timestamp"`
+	} `json:"response"`
+}
+
+func (e extension) incomplete() bool { return e.Truncated || e.Dropped > 0 || e.Rejected > 0 }
+
+// canonicalSize matches Python ensure_ascii=False compact JSON string escaping.
+// Numbers in capture accounting are integers; inert numeric metadata uses its JSON spelling.
+func canonicalSize(v any) int64 {
+	switch v := v.(type) {
+	case string:
+		size := int64(2)
+		for _, r := range v {
+			switch r {
+			case '\\', '"', '\b', '\f', '\n', '\r', '\t':
+				size += 2
+			default:
+				if r < 32 {
+					size += 6
+				} else {
+					size += int64(len(string(r)))
+				}
+			}
+		}
+		return size
+	case map[string]any:
+		size := int64(2)
+		for k, x := range v {
+			size += canonicalSize(k) + 1 + canonicalSize(x) + 1
+		}
+		if len(v) > 0 {
+			size--
+		}
+		return size
+	case []any:
+		size := int64(2)
+		for _, x := range v {
+			size += canonicalSize(x) + 1
+		}
+		if len(v) > 0 {
+			size--
+		}
+		return size
+	default:
+		b, _ := json.Marshal(v)
+		return int64(len(b))
+	}
+}
+
+func validateArtifact(raw []byte) (artifact, error) {
+	var a artifact
+	v, err := strictJSON(raw)
+	if err != nil {
+		return a, err
+	}
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
+	if err != nil {
+		return a, err
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.AssertFormat()
+	if err = compiler.AddResource("schema.json", schema); err != nil {
+		return a, err
+	}
+	compiled, err := compiler.Compile("schema.json")
+	if err != nil {
+		return a, err
+	}
+	if err = compiled.Validate(v); err != nil {
+		return a, errors.New("artifact violates public JSON schema")
+	}
+	if err = json.Unmarshal(raw, &a); err != nil {
+		return a, err
+	}
+	e := a.Extra.Calls
+	requests, responses := map[string]bool{}, map[string]bool{}
+	previous := 0
+	for _, c := range e.Calls {
+		if requests[c.RequestID] || responses[c.Response.ID] || c.Ordinal <= previous {
+			return a, errors.New("duplicate or unordered call identity")
+		}
+		requests[c.RequestID] = true
+		responses[c.Response.ID] = true
+		previous = c.Ordinal
+		if c.Step != c.Ordinal || c.ExecutionID != e.ExecutionID || c.Response.RequestID != c.RequestID || c.Response.Step != c.Step || c.Response.Model != c.Model {
+			return a, errors.New("mismatched response association")
+		}
+		if _, err = time.Parse(time.RFC3339Nano, c.Response.Timestamp); err != nil {
+			return a, errors.New("invalid response timestamp")
+		}
+	}
+	if previous > len(e.Calls)+e.Dropped+e.Rejected {
+		return a, errors.New("unaccounted ordinal gap")
+	}
+	if e.Dropped > 0 && !e.Truncated {
+		return a, errors.New("dropped calls without truncation")
+	}
+	root := v.(map[string]any)
+	ext := root["extra"].(map[string]any)["llmspec_model_calls"]
+	if canonicalSize(ext) > e.ByteLimit && !e.Truncated {
+		return a, errors.New("extension exceeds capture bound")
+	}
+	previous = 0
+	for _, step := range a.Steps {
+		n, err := strconv.Atoi(fmt.Sprint(step["step_id"]))
+		if err != nil || n <= previous {
+			return a, errors.New("unordered transcript IDs")
+		}
+		previous = n
+	}
+	return a, nil
+}
+
+func decodeFile(raw []byte, out any) error {
+	if _, err := strictJSON(raw); err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, out)
+}
+
+func completedTime(value string) (time.Time, error) {
+	// Harbor serializes naive datetimes in local time; never silently guess a zone.
+	if !strings.ContainsAny(value, "Z+") && len(value) <= 26 {
+		return time.Time{}, errors.New("timestamp requires an explicit timezone; set --harbor-timezone for naive Harbor times")
+	}
+	return time.Parse(time.RFC3339Nano, value)
+}
