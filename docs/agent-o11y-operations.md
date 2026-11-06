@@ -136,6 +136,33 @@ configured judge endpoint. Do not copy local cache paths or credentials into a
 tracked config. Harbor's ordinary default cache location remains unchanged unless
 this optional patch and environment override are explicitly installed.
 
+### Fireworks Qwen3.8 Max on the same released task
+
+`configs/harbor_job_orca_bench_agent_o11y_fireworks_qwen3p8_max.yaml` selects the
+same task with `fireworks_ai/accounts/fireworks/models/qwen3p8-max`, medium reasoning,
+temperature 1, and a 16384-token per-call limit. It retains concurrency one, the
+normal task resources/timeouts, and the same capture budgets. This is a distinct
+provider/reasoning configuration, not a claim of identical Sonnet settings.
+
+After the cache setup above, reuse the verified read-only snapshot mount. Keep the
+Fireworks key in the shell environment; alias it to LiteLLM's expected name only
+inside the process. `OPENAI_API_KEY` is still required for the independent judge:
+
+```bash
+uv run --env-file .env bash -c '
+  export FIREWORKS_AI_API_KEY="${FIREWORKS_AI_API_KEY:-${FIREWORKS_API_KEY:?Fireworks key required}}"
+  export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+  exec harbor run "$@"
+' harbor-capture --mounts-json "$MOUNTS" \
+  -c configs/harbor_job_orca_bench_agent_o11y_fireworks_qwen3p8_max.yaml
+```
+
+This uses Fireworks' public serverless model, not an account-specific deployment.
+The pinned LiteLLM version recognizes this model and supports `reasoning_effort`;
+no parameter allow-list override is needed. See the [Fireworks model page](https://fireworks.ai/models/fireworks/qwen3p8-max)
+and [reasoning guide](https://docs.fireworks.ai/guides/reasoning). Never persist the
+credential alias in a job YAML or include raw provider debug logs in Git.
+
 ### Validate a fresh capture
 
 Check that the existing `agent/trajectory.json` remains present. Compare successful

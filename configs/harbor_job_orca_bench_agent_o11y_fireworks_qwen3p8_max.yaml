@@ -1,0 +1,20 @@
+# Fresh capture of the same released task as the Sonnet smoke, concurrency one.
+# Requires the verified snapshot mount, OPENAI_API_KEY for the official verifier,
+# and FIREWORKS_AI_API_KEY (alias FIREWORKS_API_KEY in-process; never store the key).
+# See docs/agent-o11y-operations.md. No public leaderboard upload is enabled.
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_model_calls.terminus:AgentO11yTerminus2
+    model_name: fireworks_ai/accounts/fireworks/models/qwen3p8-max
+    kwargs:
+      temperature: 1
+      reasoning_effort: medium
+      capture_byte_limit: 67108864
+      capture_call_byte_limit: 4194304
+      llm_kwargs:
+        max_tokens: 16384
+tasks:
+  - name: orca-bench/05216f608f940a48
+    ref: latest
