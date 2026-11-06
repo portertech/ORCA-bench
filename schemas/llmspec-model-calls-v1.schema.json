@@ -100,17 +100,25 @@
           "properties": {
             "cache_control": {
               "type": "object",
-              "required": [
-                "type"
-              ],
               "properties": {
                 "type": {
                   "type": "string",
                   "minLength": 1
+                },
+                "ttl": {
+                  "type": "string",
+                  "minLength": 1
                 }
-              }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
             }
           },
+          "required": [
+            "cache_control"
+          ],
           "additionalProperties": false
         }
       },
@@ -134,17 +142,25 @@
           "properties": {
             "cache_control": {
               "type": "object",
-              "required": [
-                "type"
-              ],
               "properties": {
                 "type": {
                   "type": "string",
                   "minLength": 1
+                },
+                "ttl": {
+                  "type": "string",
+                  "minLength": 1
                 }
-              }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
             }
           },
+          "required": [
+            "cache_control"
+          ],
           "additionalProperties": false
         }
       },
@@ -161,28 +177,68 @@
           "const": "assistant"
         },
         "content": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "$ref": "#/$defs/part"
-          }
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "#/$defs/textPart"
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "const": "reasoning"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "$ref": "#/$defs/textPart"
+                }
+              ],
+              "items": false
+            }
+          ]
         },
         "providerOptions": {
           "type": "object",
           "properties": {
             "cache_control": {
               "type": "object",
-              "required": [
-                "type"
-              ],
               "properties": {
                 "type": {
                   "type": "string",
                   "minLength": 1
+                },
+                "ttl": {
+                  "type": "string",
+                  "minLength": 1
                 }
-              }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
             }
           },
+          "required": [
+            "cache_control"
+          ],
           "additionalProperties": false
         }
       },
@@ -208,17 +264,25 @@
               "properties": {
                 "cache_control": {
                   "type": "object",
-                  "required": [
-                    "type"
-                  ],
                   "properties": {
                     "type": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "minLength": 1
                     }
-                  }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
                 }
               },
+              "required": [
+                "cache_control"
+              ],
               "additionalProperties": false
             }
           },
@@ -245,17 +309,25 @@
               "properties": {
                 "cache_control": {
                   "type": "object",
-                  "required": [
-                    "type"
-                  ],
                   "properties": {
                     "type": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "minLength": 1
                     }
-                  }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
                 }
               },
+              "required": [
+                "cache_control"
+              ],
               "additionalProperties": false
             }
           },
@@ -272,28 +344,68 @@
               "const": "assistant"
             },
             "content": {
-              "type": "array",
-              "minItems": 1,
-              "items": {
-                "$ref": "#/$defs/part"
-              }
+              "oneOf": [
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "items": {
+                    "$ref": "#/$defs/textPart"
+                  }
+                },
+                {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "const": "reasoning"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/$defs/textPart"
+                    }
+                  ],
+                  "items": false
+                }
+              ]
             },
             "providerOptions": {
               "type": "object",
               "properties": {
                 "cache_control": {
                   "type": "object",
-                  "required": [
-                    "type"
-                  ],
                   "properties": {
                     "type": {
                       "type": "string",
                       "minLength": 1
+                    },
+                    "ttl": {
+                      "type": "string",
+                      "minLength": 1
                     }
-                  }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": false
                 }
               },
+              "required": [
+                "cache_control"
+              ],
               "additionalProperties": false
             }
           },
@@ -352,7 +464,77 @@
             "raw",
             "unified"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "properties": {
+                "raw": {
+                  "const": "stop"
+                },
+                "unified": {
+                  "const": "stop"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "length"
+                },
+                "unified": {
+                  "const": "length"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "content_filter"
+                },
+                "unified": {
+                  "const": "content-filter"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "tool_calls"
+                },
+                "unified": {
+                  "const": "tool-calls"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "function_call"
+                },
+                "unified": {
+                  "const": "tool-calls"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "not": {
+                    "enum": [
+                      "stop",
+                      "length",
+                      "content_filter",
+                      "tool_calls",
+                      "function_call"
+                    ]
+                  }
+                },
+                "unified": {
+                  "const": "unknown"
+                }
+              }
+            }
+          ]
         },
         "usage": {
           "type": "object",
@@ -380,7 +562,37 @@
               "additionalProperties": false
             },
             "raw": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "completion_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "total_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prompt_tokens_details": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "completion_tokens_details": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "required": [],
+              "additionalProperties": false
             }
           },
           "required": [

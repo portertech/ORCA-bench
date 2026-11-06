@@ -17,6 +17,13 @@ def test_identity_pairing_and_immutability(record, response):
     assert len(recorder.extension()["calls"]) == 2
 
 
+def test_duplicate_response_rejected(record):
+    recorder = record()
+    record(recorder)
+    assert len(recorder.extension()["calls"]) == 1
+    assert recorder.extension()["rejected_calls"] == 1
+
+
 def test_budgets(record):
     for recorder in (Recorder(call_byte_limit=1), Recorder(byte_limit=600)):
         record(recorder)
@@ -36,12 +43,13 @@ def test_rejected_calls(record):
     assert not recorder.extension()["truncated"]
 
 
-def test_final_extension_bound(record):
+def test_final_extension_bound(record, response):
     recorder = record()
     size = len(encode(recorder.extension()))
     bounded = Recorder(byte_limit=size)
     record(bounded)
     assert len(bounded.extension()["calls"]) == 1
+    response["id"] = "second-response"
     record(bounded)
     assert bounded.extension()["dropped_calls"] == 1
     assert len(encode(bounded.extension())) <= size

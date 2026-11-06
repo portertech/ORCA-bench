@@ -18,6 +18,9 @@ from orca_model_calls.atif import envelope, loads, validate
         lambda a, e, c: c["response"].update(timestamp="not-a-timestamp"),
         lambda a, e, c: c["messages"][0]["content"][0].update(type="image"),
         lambda a, e, c: e.update(dropped_calls="one"),
+        lambda a, e, c: c["response"]["finish_reason"].update(unified="length"),
+        lambda a, e, c: c["response"]["message"]["content"].reverse(),
+        lambda a, e, c: c["response"]["usage"]["raw"].update(prompt_tokens_details=1),
         lambda a, e, c: a["final_metrics"].update(cost=float("nan")),
     ],
 )

@@ -43,6 +43,7 @@ class Recorder:
         self._next = 0
         self._records = []
         self._settled = set()
+        self._response_ids = set()
         self.truncated = False
         self.dropped_calls = 0
         self.rejected_calls = 0
@@ -95,9 +96,12 @@ class Recorder:
                     "xhigh",
                 }:
                     raise Unrepresentable("unsupported reasoning effort")
-                if tools:
+                if tools is not None and tools != []:
                     raise Unrepresentable("native tools are not supported initially")
                 result = response_to_wire(response, completed_at)
+                if result["id"] in self._response_ids:
+                    raise Unrepresentable("duplicate response ID")
+                self._response_ids.add(result["id"])
                 call = {
                     "request_id": identity.request_id,
                     "execution_generation_id": identity.execution_generation_id,

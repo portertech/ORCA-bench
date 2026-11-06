@@ -20,7 +20,16 @@ def provider_options(value):
     if "cache_control" not in value:
         return {}
     control = value["cache_control"]
-    if not isinstance(control, dict) or not isinstance(control.get("type"), str):
+    if (
+        not isinstance(control, dict)
+        or set(control) - {"type", "ttl"}
+        or not isinstance(control.get("type"), str)
+        or not control["type"]
+        or (
+            "ttl" in control
+            and (not isinstance(control["ttl"], str) or not control["ttl"])
+        )
+    ):
         raise Unrepresentable("malformed cache_control")
     # Copy only the explicitly selected inert field, never callback metadata.
     return {
@@ -109,6 +118,23 @@ def response_to_wire(response, completed_at):
             value = {k: v for k, v in value.items() if v is not None}
         if value:
             raise Unrepresentable("unsupported response payload")
+    known = {
+        "role",
+        "content",
+        "reasoning_content",
+        "tool_calls",
+        "function_call",
+        "audio",
+        "images",
+        "refusal",
+        "thinking_blocks",
+        "provider_specific_fields",
+        "annotations",
+    }
+    if any(
+        value is not None for key, value in msg.items() if key not in known
+    ) or msg.get("annotations"):
+        raise Unrepresentable("unmodeled response fields")
     selected = {k: msg[k] for k in ("role", "content", "reasoning_content") if k in msg}
     output = messages_to_wire([selected])[0]
     if output["role"] != "assistant":
@@ -156,7 +182,9 @@ def response_to_wire(response, completed_at):
         value = usage_raw.get(key)
         if value is None:
             continue
-        if isinstance(value, dict):
+        if key.endswith("_details"):
+            if not isinstance(value, dict):
+                raise Unrepresentable("invalid usage detail object")
             value = {k: v for k, v in value.items() if type(v) is int and v >= 0}
         elif type(value) is not int or value < 0:
             raise Unrepresentable("invalid usage metadata")

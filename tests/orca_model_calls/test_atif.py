@@ -42,6 +42,22 @@ def test_envelope_and_atomic_replace(record, tmp_path):
     assert "extra" not in loads(path.read_bytes())["agent"]
 
 
+def test_atomic_replace_failure_preserves_previous(record, tmp_path, monkeypatch):
+    artifact = envelope(record(), "synthetic-session")
+    path = tmp_path / "artifact.json"
+    atomic_write(path, artifact)
+    previous = path.read_bytes()
+
+    def fail_replace(*args):
+        raise OSError("synthetic replace failure")
+
+    monkeypatch.setattr("orca_model_calls.atif.os.replace", fail_replace)
+    with pytest.raises(OSError):
+        atomic_write(path, artifact)
+    assert path.read_bytes() == previous
+    assert list(tmp_path.iterdir()) == [path]
+
+
 @pytest.mark.parametrize("data", ['{"x": NaN}', '{"x": 1, "x": 2}', '{"x": Infinity}'])
 def test_strict_json(data):
     with pytest.raises(ValueError):

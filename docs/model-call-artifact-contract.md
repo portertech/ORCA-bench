@@ -39,7 +39,9 @@ System message content is a string; user/assistant content is an ordered array
 of `{type: text, text: string}` parts. Assistant reasoning uses
 `{type: reasoning, text: string}` before its text part. User text-part lists are
 preserved. `cache_control` is preserved on the original message or part under
-inert `providerOptions.cache_control`. This initial producer supports no native
+inert `providerOptions.cache_control` (`type` and optional `ttl` strings, with
+unknown cache-control fields rejected). Assistant content is exactly one text
+part, optionally preceded by one reasoning part. This initial producer supports no native
 tools (`tools: []`), media, tool results, or unmodeled response structures. Such
 successful responses are rejected with explicit accounting, not coerced.
 

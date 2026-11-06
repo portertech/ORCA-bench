@@ -1,0 +1,16 @@
+# Paid-provider synthetic smoke, not a leaderboard/ORCA task.
+# Requires Docker and OPENAI_API_KEY. From repository root:
+# uv run harbor run -c configs/harbor_job_model_calls_smoke.yaml
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_model_calls.terminus:AgentO11yTerminus2
+    model_name: openai/gpt-4o-mini
+    kwargs:
+      max_turns: 3
+      record_terminal_session: false
+      llm_kwargs:
+        max_tokens: 512
+tasks:
+  - path: tests/fixtures/harbor_capture_smoke

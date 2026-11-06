@@ -1,15 +1,24 @@
-"""Harbor adapter using per-call official LiteLLM success callbacks.
+"""Harbor adapter using per-call official LiteLLM async success callbacks.
 
-No global callback registration or copied Harbor call implementation. The event
-bridges LiteLLM's logging worker and the agent asyncio loop.
+No global callback registration or copied Harbor call implementation. A
+condition bridges logging workers and the asyncio loop. Harbor's existing
+usage-extraction extension point counts successful raw responses, including
+ones retried after conversion errors, so a missing callback cannot hide loss.
 """
 
 import asyncio
 import threading
+from contextvars import ContextVar
 from datetime import datetime, timezone
 
-from harbor.llms.base import OutputLengthExceededError
 from harbor.llms.lite_llm import LiteLLM
+
+_observation = ContextVar("orca_model_call_observation", default=None)
+
+
+def response_key(response):
+    # The pinned LiteLLM callback receives the same raw response object.
+    return id(response)
 
 
 class CapturingLiteLLM(LiteLLM):
@@ -20,27 +29,46 @@ class CapturingLiteLLM(LiteLLM):
             raise ValueError("callback_timeout must be positive")
         self.recorder = recorder
         self.callback_timeout = callback_timeout
+        self._capture_call_lock = asyncio.Lock()
         super().__init__(*args, **kwargs)
 
+    def _extract_usage_info(self, response):
+        observation = _observation.get()
+        if observation is not None:
+            condition, expected, identities, recorder = observation
+            with condition:
+                key = response_key(response)
+                expected[key] = response
+                if key not in identities:
+                    identities[key] = recorder.begin()
+        return super()._extract_usage_info(response)
+
     async def call(self, *args, **kwargs):
+        # Terminus calls (including summarization) are sequential. Serialize any
+        # same-instance callers to retain request order; separate trials stay concurrent.
+        async with self._capture_call_lock:
+            return await self._capturing_call(*args, **kwargs)
+
+    async def _capturing_call(self, *args, **kwargs):
         if self._use_responses_api:
             raise ValueError("Responses API capture is not supported")
-        event = threading.Event()
-        lock = threading.Lock()
-        seen = set()
+        condition = threading.Condition()
+        # Retain raw objects until settlement so Python object IDs cannot be reused.
+        expected, seen = {}, {}
+        identities = {}
         closed = False
-        recorder = self.recorder  # Bind to this execution, even if a callback is late.
+        recorder = self.recorder  # A late callback cannot enter a later execution.
+        token = _observation.set((condition, expected, identities, recorder))
 
         async def success(details, response, start_time, end_time):
-            nonlocal closed
-            with lock:
-                if closed:
+            with condition:
+                key = response_key(response)
+                if closed or key in seen:
                     return
-                response_id = getattr(response, "id", None)
-                if response_id in seen:
-                    return
-                seen.add(response_id)
-                identity = recorder.begin()
+                seen[key] = response
+                if key not in identities:
+                    identities[key] = recorder.begin()
+                identity = identities[key]
                 try:
                     provider = details.get("custom_llm_provider") or details.get(
                         "litellm_params", {}
@@ -56,32 +84,32 @@ class CapturingLiteLLM(LiteLLM):
                         messages=details.get("messages"),
                         tools=details.get("optional_params", {}).get("tools"),
                         response=response,
-                        completed_at=(
-                            end_time
-                            if isinstance(end_time, datetime)
-                            else datetime.now(timezone.utc)
-                        ),
+                        # LiteLLM's end_time may be naive local time. A fresh UTC
+                        # observation is unambiguous; provider created wins in mapping.
+                        completed_at=datetime.now(timezone.utc),
                     )
                 except Exception:
                     recorder.reject(identity, "callback_mapping_failed")
                 finally:
-                    event.set()
+                    condition.notify_all()
 
         callbacks = list(kwargs.pop("success_callback", []))
         kwargs["success_callback"] = [*callbacks, success]
-        successful = False
+
+        def wait():
+            with condition:
+                return condition.wait_for(
+                    lambda: expected.keys() <= seen.keys(), self.callback_timeout
+                )
+
         try:
-            result = await super().call(*args, **kwargs)
-            successful = True
-            return result
-        except OutputLengthExceededError:
-            successful = True  # Harbor raises after a successful provider response.
-            raise
+            return await super().call(*args, **kwargs)
         finally:
-            # Also allow callbacks for successful responses Harbor could not convert.
-            # Failed provider requests themselves never create completion records.
-            arrived = await asyncio.to_thread(event.wait, self.callback_timeout)
-            with lock:
-                closed = True
-                if successful and not arrived:
-                    recorder.reject(recorder.begin(), "callback_timeout")
+            try:
+                await asyncio.to_thread(wait)
+            finally:
+                with condition:
+                    closed = True
+                    for key in expected.keys() - seen.keys():
+                        recorder.reject(identities[key], "callback_timeout")
+                _observation.reset(token)
