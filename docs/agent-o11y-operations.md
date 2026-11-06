@@ -82,6 +82,62 @@ For a real ORCA pilot, follow the README's snapshot setup, supply
 uv run orca-model-calls jobs/JOB/TRIAL/agent/llmspec-trajectory.atif.json
 ```
 
+### One released task with Sonnet on Apple Silicon
+
+`configs/harbor_job_orca_bench_agent_o11y_sonnet.yaml` selects one public Hub task
+with concurrency one, Sonnet 5.5, and the same text-only thinking mode as the
+synthetic smoke. It uses the normal task timeout and resources and does not enable
+public leaderboard uploads. It requires both `ANTHROPIC_API_KEY` (agent) and
+`OPENAI_API_KEY` (official verifier). The verifier's base URL must not be empty;
+Compose otherwise passes an empty string that the OpenAI SDK rejects.
+
+Harbor 0.20.0 hard-codes its home-directory cache. If that location is unavailable,
+the optional `patches/harbor_constants.py` adds `HARBOR_CACHE_DIR` while preserving
+the original default and registry settings. This is a cache-location patch, not a
+capture/LLM adapter patch. Install it into the pinned environment:
+
+```bash
+cp patches/harbor_constants.py "$(uv run python -c \
+  'import harbor.constants as c; print(c.__file__)')"
+export HARBOR_CACHE_DIR="$PWD/.cache/harbor"
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+```
+
+The published task and snapshot images are AMD64-only. Restore the declared image:
+
+```bash
+docker pull --platform linux/amd64 \
+  orcabench/sre-otel-snapshot:data-0418-harbor-template-v2
+```
+
+It is roughly 26 GiB compressed and 59 GB unpacked. The staged host snapshot needs
+roughly another 55 GiB; check disk space first. A completed run under emulation with Docker
+Desktop's 8 GiB allocation is feasible at concurrency one, but is not evidence of
+capacity for concurrent trials.
+
+A pre-existing staged snapshot may be reused **read-only**, provided its cache key
+matches the first 12 hex characters of the image ID and it contains the task's
+named snapshot. Do not reuse agent outputs or reconstruct captures from old jobs.
+For an already verified cache, skip extraction and mount the same absolute path
+inside and outside the container:
+
+```bash
+export SNAPSHOT_CACHE_HOST_DIR=/ABSOLUTE/VERIFIED/CACHE/IMAGE_ID_PREFIX
+MOUNTS="$(uv run python -c 'import json, os; p = os.environ["SNAPSHOT_CACHE_HOST_DIR"]; print(json.dumps([{"type": "bind", "source": p, "target": p, "read_only": True}]))')"
+uv run --env-file .env bash -c '
+  export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+  exec harbor run "$@"
+' harbor-capture --mounts-json "$MOUNTS" \
+  -c configs/harbor_job_orca_bench_agent_o11y_sonnet.yaml
+```
+
+The verifier base URL is defaulted **after** loading `.env`, preserving an explicitly
+configured judge endpoint. Do not copy local cache paths or credentials into a
+tracked config. Harbor's ordinary default cache location remains unchanged unless
+this optional patch and environment override are explicitly installed.
+
+### Validate a fresh capture
+
 Check that the existing `agent/trajectory.json` remains present. Compare successful
 logical API-call counts, including summarization, with the captured call count.
 Record bytes and SHA-256 **outside Git**. For a normal successful smoke, require
