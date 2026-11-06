@@ -227,3 +227,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local implementation plans
+/AGENT_O11Y_IMPLEMENTATION_PLAN.md
