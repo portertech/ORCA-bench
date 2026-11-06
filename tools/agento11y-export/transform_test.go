@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestPublicGoldenValidation(t *testing.T) {
 	}
 }
 func TestStrictJSON(t *testing.T) {
-	for _, raw := range []string{`{"x":1,"x":2}`, `{"x":NaN}`, `{} {}`, `{"x":Infinity}`} {
+	for _, raw := range []string{`{"x":1,"x":2}`, `{"x":NaN}`, `{} {}`, `{"x":Infinity}`, `{"x":1e9999}`} {
 		if _, err := strictJSON([]byte(raw)); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
@@ -114,6 +115,17 @@ func TestMixedEvaluatorRejected(t *testing.T) {
 		t.Fatal("accepted mixed evaluator")
 	}
 }
+func TestExtensionIntegerNotation(t *testing.T) {
+	raw, err := os.ReadFile("../../tests/fixtures/model_calls/valid-complete.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = []byte(strings.Replace(string(raw), `"total_tokens": 12`, `"total_tokens": 12.0`, 1))
+	if _, err := validateArtifact(raw); err == nil {
+		t.Fatal("accepted fractional integer notation")
+	}
+}
+
 func TestCanonicalBytes(t *testing.T) {
 	v, err := strictJSON([]byte("{\"text\":\"é<\u2028\",\"n\":1}"))
 	if err != nil {

@@ -13,6 +13,8 @@ from orca_model_calls.atif import envelope, loads, validate
         lambda a, e, c: a["agent"].update(extra=True),
         lambda a, e, c: e["calls"].append(copy.deepcopy(c)),
         lambda a, e, c: c.update(ordinal=3),
+        lambda a, e, c: c.update(ordinal=1.0),
+        lambda a, e, c: c["response"]["usage"]["raw"].update(total_tokens=12.0),
         lambda a, e, c: c["response"].update(request_id="wrong"),
         lambda a, e, c: c["response"].update(step_number=2),
         lambda a, e, c: c["response"].update(timestamp="not-a-timestamp"),

@@ -1,5 +1,5 @@
 # Opt-in capture only. Captured prompts may contain secrets: never commit jobs/.
-# Start at concurrency one and filter to one task with Harbor's --task-name.
+# Start at concurrency one and filter to one task with Harbor's --include-task-name.
 jobs_dir: jobs
 n_concurrent_trials: 1
 n_attempts: 1

@@ -61,6 +61,18 @@ def validate(artifact):
     ).validate(artifact)
     encode(artifact)  # Reject non-finite values even inside inert metadata.
     ext = artifact["extra"]["llmspec_model_calls"]
+
+    def strict_integers(value):
+        if isinstance(value, float):
+            raise ValueError("extension numbers must use integer JSON notation")
+        if isinstance(value, dict):
+            for child in value.values():
+                strict_integers(child)
+        elif isinstance(value, list):
+            for child in value:
+                strict_integers(child)
+
+    strict_integers(ext)
     ids, response_ids, ordinals = set(), set(), []
     for call in ext["calls"]:
         ordinal = call["ordinal"]
@@ -100,6 +112,8 @@ def validate(artifact):
     if len(encode(ext)) > ext["capture_byte_limit"] and not ext["truncated"]:
         raise ValueError("extension exceeds its declared bound")
     step_ids = [step["step_id"] for step in artifact["steps"]]
+    if any(type(step_id) is not int for step_id in step_ids):
+        raise ValueError("transcript IDs must use integer JSON notation")
     if step_ids != sorted(set(step_ids)):
         raise ValueError("transcript IDs must be unique and increasing")
     return artifact

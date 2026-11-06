@@ -133,7 +133,15 @@ func publish(ctx context.Context, p publisher, plan experimentPlan, stateDir, de
 		if r.Fingerprint != digest(snapshot) {
 			return errors.New("run receipt conflicts with changed inputs/options; use a new run ID")
 		}
+		if r.Uploads == nil {
+			return errors.New("invalid publication receipt: missing uploads")
+		}
 		if r.Complete {
+			for _, trial := range plan.Trials {
+				if r.Uploads[trial.Trial.TrialID] != trial.ArtifactSHA {
+					return errors.New("completed receipt lacks a verified artifact hash")
+				}
+			}
 			return nil
 		}
 		for _, v := range r.Uploads {

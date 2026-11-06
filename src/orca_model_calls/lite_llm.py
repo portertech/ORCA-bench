@@ -93,7 +93,9 @@ class CapturingLiteLLM(LiteLLM):
                 finally:
                     condition.notify_all()
 
-        callbacks = list(kwargs.pop("success_callback", []))
+        callbacks = list(
+            kwargs.pop("success_callback", self._llm_kwargs.get("success_callback", []))
+        )
         kwargs["success_callback"] = [*callbacks, success]
 
         def wait():

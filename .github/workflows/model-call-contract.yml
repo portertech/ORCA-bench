@@ -1,0 +1,49 @@
+name: Model-call producer contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/orca_model_calls/**'
+      - 'tests/orca_model_calls/**'
+      - 'tests/fixtures/**'
+      - 'schemas/**'
+      - 'tools/agento11y-export/**'
+      - 'configs/*model_calls*'
+      - 'configs/*agent_o11y*'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/model-call-contract.yml'
+  push:
+    branches: [agent-o11y, main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked --group tests
+      - run: uv run --locked pytest -q tests/orca_model_calls
+      - run: uv build --wheel
+  exporter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/agento11y-export
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/agento11y-export/go.mod
+          cache-dependency-path: tools/agento11y-export/go.sum
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: test -z "$(gofmt -l *.go)"

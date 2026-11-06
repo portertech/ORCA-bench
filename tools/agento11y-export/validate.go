@@ -29,6 +29,11 @@ func strictJSON(raw []byte) (any, error) {
 		}
 		delim, ok := token.(json.Delim)
 		if !ok {
+			if n, ok := token.(json.Number); ok && strings.ContainsAny(string(n), ".eE") {
+				if _, err := strconv.ParseFloat(string(n), 64); err != nil {
+					return nil, errors.New("non-finite JSON number")
+				}
+			}
 			return token, nil
 		}
 		switch delim {
@@ -210,11 +215,15 @@ func validateArtifact(raw []byte) (artifact, error) {
 	}
 	root := v.(map[string]any)
 	ext := root["extra"].(map[string]any)["llmspec_model_calls"]
+	if !integerNotation(ext) {
+		return a, errors.New("extension numbers must use integer JSON notation")
+	}
 	if canonicalSize(ext) > e.ByteLimit && !e.Truncated {
 		return a, errors.New("extension exceeds capture bound")
 	}
 	previous = 0
-	for _, step := range a.Steps {
+	for _, rawStep := range root["steps"].([]any) {
+		step := rawStep.(map[string]any)
 		n, err := strconv.Atoi(fmt.Sprint(step["step_id"]))
 		if err != nil || n <= previous {
 			return a, errors.New("unordered transcript IDs")
@@ -224,17 +233,29 @@ func validateArtifact(raw []byte) (artifact, error) {
 	return a, nil
 }
 
+func integerNotation(v any) bool {
+	switch v := v.(type) {
+	case json.Number:
+		return !strings.ContainsAny(string(v), ".eE")
+	case map[string]any:
+		for _, child := range v {
+			if !integerNotation(child) {
+				return false
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if !integerNotation(child) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func decodeFile(raw []byte, out any) error {
 	if _, err := strictJSON(raw); err != nil {
 		return err
 	}
 	return json.Unmarshal(raw, out)
-}
-
-func completedTime(value string) (time.Time, error) {
-	// Harbor serializes naive datetimes in local time; never silently guess a zone.
-	if !strings.ContainsAny(value, "Z+") && len(value) <= 26 {
-		return time.Time{}, errors.New("timestamp requires an explicit timezone; set --harbor-timezone for naive Harbor times")
-	}
-	return time.Parse(time.RFC3339Nano, value)
 }

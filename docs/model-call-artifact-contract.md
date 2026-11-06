@@ -9,7 +9,10 @@ The semantic rules below supplement JSON Schema. The deterministic examples in
 ## Envelope and identities
 
 The file is `agent/llmspec-trajectory.atif.json`, encoded as strict UTF-8 JSON
-without non-finite numbers or duplicate object keys. The ATIF-v1.7 root is closed:
+without non-finite numbers or duplicate object keys. Extension numbers and step
+IDs use integer JSON notation, not fractional/exponent notation (for example,
+`1`, not `1.0` or `1e0`). Envelope metrics may contain finite floating-point
+numbers. The ATIF-v1.7 root is closed:
 `schema_version`, `session_id`, `trajectory_id`, `agent`, `steps`, `final_metrics`,
 `extra`. `agent` contains only `name` and `version`. Session identity comes from
 Terminus; trajectory identity is fresh per run. Transcript sources are `user`,

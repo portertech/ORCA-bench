@@ -9,6 +9,11 @@
 # Harbor job output (jobs_dir in job-config.yaml; uploaded to the hub instead)
 /jobs/
 
+# Sensitive Agent Observability publication state and export bundles.
+.agento11y-export/
+/exports/
+/agento11y-receipts/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

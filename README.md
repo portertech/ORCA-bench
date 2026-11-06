@@ -478,3 +478,58 @@ uv run python classify_telemetry_calls.py -od OUTPUT_DIR --concurrency 800 -e hi
 # Generate Figure 8: Retrieval diagnostics
 uv run python plot_retrieval.py -od OUTPUT_DIR -jd jobs-sub
 ```
+
+## Opt-in model-call capture and Agent Observability
+
+Dedicated fresh runs can capture exact effective LiteLLM requests and successful
+responses in `agent/llmspec-trajectory.atif.json`. This is **not enabled for normal
+leaderboard runs**, and old Harbor trajectories cannot be converted into exact
+backend captures.
+
+> [!WARNING]
+> Captures contain prompts and terminal output, which may contain secrets. Keep
+> capture confined to controlled environments. Never commit real artifacts,
+> dry-run snapshots, receipts, or GCX export bundles. Audit before publication;
+> do not redact captured prompts in place.
+
+Dependencies are pinned to Harbor **0.20.0**, LiteLLM **1.89.3**, and the exporter
+uses `github.com/grafana/agento11y/go` **v0.18.0**. The adapter uses official
+per-call async LiteLLM callbacks and Harbor's existing usage-extraction extension
+point; no patched Harbor install is required. Responses API, multi-step/resume,
+trajectory splitting, media and native tool calls are not supported initially.
+
+```bash
+uv sync --locked --group tests
+# Tiny paid-provider + Docker smoke (synthetic task, requires OPENAI_API_KEY):
+uv run harbor run -c configs/harbor_job_model_calls_smoke.yaml
+
+# Actual ORCA pilot: requires the snapshot setup and GRADIENT_API_KEY.
+# Replace TASK_NAME with one exact dataset task before running.
+./run_harbor_cached.sh -c configs/harbor_job_orca_bench_agent_o11y.yaml \
+  --include-task-name TASK_NAME --n-tasks 1 --n-concurrent 1
+
+uv run orca-model-calls jobs/JOB/TRIAL/agent/llmspec-trajectory.atif.json
+```
+
+The Go exporter defaults to one experiment per job/agent/model and requires a
+deployment-supplied evaluator ID and version. For example, from
+`tools/agento11y-export/`:
+
+```bash
+go run . --dry-run --harbor-timezone UTC \
+  --evaluator-id orca-bench.verifier --evaluator-version EXAMPLE_VERSION \
+  ../../jobs/JOB
+```
+
+Use `UTC` only when that is the recorded Harbor host timezone. The default
+benchmark pass rule is `reward == 1.0`; capture completeness is a separate
+status. Default capture limits are **64 MiB total / 4 MiB per call**, with
+whole-call loss accounting rather than partial truncation. Cumulative ORCA
+prompts can produce very large artifacts: measure an actual pilot before scaling.
+
+See [operation and acceptance gates](docs/agent-o11y-operations.md) for SDK
+environment variables, publication, GCX pull and SHA-256 verification, upload-size
+probes and remaining deployment checks. The [versioned public artifact
+contract](docs/model-call-artifact-contract.md) defines producer-independent
+exports: compatible consumers use the unmodified GCX bundle without an
+ORCA-specific rewrite.

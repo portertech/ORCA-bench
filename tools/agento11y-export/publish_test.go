@@ -129,6 +129,28 @@ func TestAmbiguousUploadNotRetried(t *testing.T) {
 		t.Fatal("network operations after ambiguous upload")
 	}
 }
+func TestResumeDoesNotRepeatConfirmedUpload(t *testing.T) {
+	plan := onePlan(t)
+	state := t.TempDir()
+	f := &fakePublisher{fail: "trial-terminal"}
+	if err := publish(t.Context(), f, plan, state, "synthetic"); err == nil {
+		t.Fatal("failure swallowed")
+	}
+	f.fail = ""
+	if err := publish(t.Context(), f, plan, state, "synthetic"); err != nil {
+		t.Fatal(err)
+	}
+	uploads := 0
+	for _, event := range f.events {
+		if event == "artifact" {
+			uploads++
+		}
+	}
+	if uploads != 1 {
+		t.Fatal("confirmed upload repeated")
+	}
+}
+
 func TestOnlyGenerationVisibilityRaceRetried(t *testing.T) {
 	f := &fakePublisher{race: true}
 	if err := exportScore(t.Context(), f, a.ScoreItem{ScoreID: "synthetic"}); err != nil {
