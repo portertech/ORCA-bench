@@ -141,9 +141,13 @@ tracked files. Supported SDK settings include:
 
 | Variable / flag | Purpose |
 | --- | --- |
-| `AGENTO11Y_ENDPOINT` | Generation ingest endpoint |
+| `AGENTO11Y_ENDPOINT` | SDK ingestion service origin for generations and experiment/trial/score/artifact writes |
 | `AGENTO11Y_PROTOCOL` | `http` or `grpc` (not instrumentation-only) |
-| `AGENTO11Y_API_ENDPOINT` / `--api-endpoint` | Experiment/score/artifact API (`AGENTO11Y_CONTROL_ENDPOINT` is a fallback alias) |
+| `AGENTO11Y_API_ENDPOINT` / `--api-endpoint` | Optional SDK write API origin override; defaults to `AGENTO11Y_ENDPOINT` |
+| `AGENTO11Y_CONTROL_ENDPOINT` | Grafana read/control proxy, **not** the SDK write endpoint |
+| `AGENTO11Y_INGEST_ACTOR` | SDK ingestion actor header (default `ingest:sdk/go`) |
+| `AGENTO11Y_GRAFANA_URL` | Grafana root used for the printed experiment UI URL |
+| `AGENTO11Y_SERVICE_ACCOUNT_TOKEN` | Grafana service-account credential for read/export verification; not the SDK ingest credential |
 | `AGENTO11Y_AUTH_MODE` | Supported SDK mode: `basic`, `bearer`, `tenant`, `none` |
 | `AGENTO11Y_AUTH_TENANT_ID` | Deployment tenant identity where required |
 | `AGENTO11Y_AUTH_TOKEN` | Deployment token/password where required |
@@ -153,9 +157,20 @@ tracked files. Supported SDK settings include:
 The SDK also supports transport/queue/timeouts via its documented settings.
 Generation export must not be disabled; the command rejects `none`/OTel-only modes.
 
-`--api-endpoint` takes precedence over `AGENTO11Y_API_ENDPOINT`, which takes
-precedence over `AGENTO11Y_CONTROL_ENDPOINT`. Credentials alone are not sufficient:
-you must also supply an evaluator ID/version and confirm the intended destination.
+`--api-endpoint` takes precedence over `AGENTO11Y_API_ENDPOINT`, which defaults
+to `AGENTO11Y_ENDPOINT`. The SDK's write methods use the ingestion API with the
+ingestion credentials for experiments, trials, generations, scores and artifacts.
+Do **not** point those methods at the Grafana `resources/eval` proxy: its path and
+service-account authentication are different. The exporter rejects path-prefixed
+write origins rather than allowing the SDK to silently strip the path.
+
+Use Grafana credentials for GCX read/export operations instead. For example, map
+`AGENTO11Y_GRAFANA_URL` to GCX's `GRAFANA_SERVER` and
+`AGENTO11Y_SERVICE_ACCOUNT_TOKEN` to `GRAFANA_TOKEN` within your secret-loading
+workflow. Do not put tokens in command arguments or alter unrelated OAuth contexts.
+Credentials alone are not sufficient: also supply an evaluator ID/version and
+confirm the intended destination. After publication, the exporter prints
+`experiment_url=...`; `AGENTO11Y_EXPERIMENT_URL_TEMPLATE` can override the SDK URL.
 
 To load a root `.env` for an exporter dry-run, run from the repository root:
 
@@ -276,6 +291,11 @@ Implemented and locally exercised:
   reward 1.0; credential exclusion and exporter dry-run passed. This surfaced and
   fixed the mapping of cached assistant text blocks; the original incomplete
   capture was retained unchanged, and the passing capture came from a fresh run.
+- Publication of one passing Sonnet synthetic smoke to an operator-confirmed
+  target, with server-side completed status and passing headline score. An
+  unmodified GCX pull verified all experiment/trial/generation/score/artifact
+  associations, exact artifact byte identity and manifest checksums. The bundle
+  and manifest hash receipt remain outside Git.
 - Real Go SDK HTTP publication tests for associations, order, exact artifact bytes,
   failure status, score retries and receipt replay protection.
 
@@ -286,7 +306,8 @@ Implemented and locally exercised:
 - Staging publication of passing and failing ORCA benchmark trials, plus the
   incomplete-capture diagnostic case.
 - Staging 16/32/64 MiB uploads and upload-retry server idempotency.
-- Actual GCX download byte identity, repeat-pull equivalence and manifest anchors.
+- Repeat-pull equivalence and realistic ORCA GCX byte-integrity acceptance (the
+  single synthetic smoke's download bytes and manifest anchor have passed).
 - External compatibility gate against unmodified exported bundles.
 
 Keep concurrency and coverage low until these gates pass. A synthetic smoke does

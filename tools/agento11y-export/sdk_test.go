@@ -22,6 +22,12 @@ func TestSDKHTTPPublication(t *testing.T) {
 	var mu sync.Mutex
 	events := []string{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, password, ok := r.BasicAuth()
+		if !ok || user != "synthetic-tenant" || password != "synthetic-token" || r.Header.Get("X-Sigil-Ingest-Actor") != "synthetic-actor" {
+			t.Error("SDK ingestion authentication/actor missing")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		raw, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Error(err)
@@ -94,7 +100,13 @@ func TestSDKHTTPPublication(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	client := a.NewClient(a.Config{GenerationExport: a.GenerationExportConfig{Protocol: a.GenerationExportProtocolHTTP, Endpoint: server.URL + "/api/v1/generations:export", Insecure: a.BoolPtr(true), FlushInterval: time.Hour, Auth: a.AuthConfig{Mode: a.ExportAuthModeNone}}, API: a.APIConfig{Endpoint: server.URL}})
+	t.Setenv("AGENTO11Y_API_ENDPOINT", "")
+	t.Setenv("AGENTO11Y_ENDPOINT", server.URL)
+	t.Setenv("AGENTO11Y_CONTROL_ENDPOINT", "https://grafana.example.invalid/api/plugins/grafana-agento11y-app/resources/eval")
+	t.Setenv("AGENTO11Y_INGEST_ACTOR", "synthetic-actor")
+	cfg := a.Config{GenerationExport: a.GenerationExportConfig{Protocol: a.GenerationExportProtocolHTTP, Endpoint: server.URL + "/api/v1/generations:export", Insecure: a.BoolPtr(true), FlushInterval: time.Hour, Auth: a.AuthConfig{Mode: a.ExportAuthModeBasic, TenantID: "synthetic-tenant", BasicPassword: "synthetic-token"}}, API: a.APIConfig{Endpoint: apiEndpointFromEnv()}}
+	configureIngestActor(&cfg)
+	client := a.NewClient(cfg)
 	defer client.Shutdown(t.Context())
 	if err := publish(t.Context(), client, plan, t.TempDir(), server.URL); err != nil {
 		t.Fatal(err)

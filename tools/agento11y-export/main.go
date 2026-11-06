@@ -21,12 +21,39 @@ import (
 )
 
 func apiEndpointFromEnv() string {
-	for _, key := range []string{"AGENTO11Y_API_ENDPOINT", "AGENTO11Y_CONTROL_ENDPOINT"} {
+	for _, key := range []string{"AGENTO11Y_API_ENDPOINT", "AGENTO11Y_ENDPOINT"} {
 		if endpoint := strings.TrimSpace(os.Getenv(key)); endpoint != "" {
 			return endpoint
 		}
 	}
 	return ""
+}
+
+func configureIngestActor(cfg *a.Config) {
+	for key := range cfg.GenerationExport.Headers {
+		if strings.EqualFold(key, "X-Sigil-Ingest-Actor") {
+			return
+		}
+	}
+	actor := strings.TrimSpace(os.Getenv("AGENTO11Y_INGEST_ACTOR"))
+	if actor == "" {
+		actor = "ingest:sdk/go"
+	}
+	if cfg.GenerationExport.Headers == nil {
+		cfg.GenerationExport.Headers = map[string]string{}
+	}
+	cfg.GenerationExport.Headers["X-Sigil-Ingest-Actor"] = actor
+}
+
+func experimentURL(client *a.Client, runID string) string {
+	if os.Getenv("AGENTO11Y_EXPERIMENT_URL_TEMPLATE") != "" || os.Getenv("SIGIL_EXPERIMENT_URL_TEMPLATE") != "" {
+		return client.ExperimentURL(runID)
+	}
+	if root := strings.TrimSpace(os.Getenv("AGENTO11Y_GRAFANA_URL")); root != "" {
+		// Same public UI route as the SDK's experiments.Client.ExperimentURL.
+		return strings.TrimRight(root, "/") + "/a/grafana-agento11y-app/offline-experiments/experiments/" + url.PathEscape(runID)
+	}
+	return client.ExperimentURL(runID)
 }
 
 func run(ctx context.Context, args []string) error {
@@ -48,7 +75,7 @@ func run(ctx context.Context, args []string) error {
 	dry := flags.Bool("dry-run", false, "validate and report associations without any network calls")
 	snapshot := flags.String("snapshot", "", "write sensitive dry-run payloads to a private JSON file")
 	stateDir := flags.String("state-dir", "", "publication receipts (default JOB/.agento11y-export)")
-	apiEndpoint := flags.String("api-endpoint", apiEndpointFromEnv(), "Agent Observability API endpoint (AGENTO11Y_API_ENDPOINT or AGENTO11Y_CONTROL_ENDPOINT)")
+	apiEndpoint := flags.String("api-endpoint", apiEndpointFromEnv(), "SDK write API origin (AGENTO11Y_API_ENDPOINT, default AGENTO11Y_ENDPOINT; not the Grafana control proxy)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -96,17 +123,18 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("invalid Agent Observability environment configuration")
 	}
 	if cfg.GenerationExport.Endpoint == "" || *apiEndpoint == "" {
-		return errors.New("publication requires AGENTO11Y_ENDPOINT and --api-endpoint, AGENTO11Y_API_ENDPOINT, or AGENTO11Y_CONTROL_ENDPOINT")
+		return errors.New("publication requires AGENTO11Y_ENDPOINT; optionally override the SDK write API origin with --api-endpoint or AGENTO11Y_API_ENDPOINT")
 	}
 	endpoint, err := url.Parse(*apiEndpoint)
-	if err != nil || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" {
-		return errors.New("invalid API endpoint")
+	if err != nil || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || (endpoint.Path != "" && endpoint.Path != "/") {
+		return errors.New("invalid SDK write API origin: use the ingestion service origin, not a path-prefixed Grafana control proxy")
 	}
 	if cfg.GenerationExport.Protocol != a.GenerationExportProtocolHTTP && cfg.GenerationExport.Protocol != a.GenerationExportProtocolGRPC {
 		return errors.New("publication requires http or grpc generation transport, not instrumentation-only mode")
 	}
 	cfg.API.Endpoint = *apiEndpoint
 	cfg.ContentCapture = a.ContentCaptureModeFull
+	configureIngestActor(&cfg)
 	client := a.NewClient(cfg)
 	defer func() {
 		shutdown, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -121,6 +149,7 @@ func run(ctx context.Context, args []string) error {
 		if err = publish(ctx, client, p, *stateDir, destination); err != nil {
 			return err
 		}
+		fmt.Printf("experiment_url=%s\n", experimentURL(client, p.Experiment.RunID))
 	}
 	return nil
 }
