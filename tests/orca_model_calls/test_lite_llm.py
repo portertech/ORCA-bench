@@ -45,6 +45,19 @@ def provider():
                     },
                 }
             ).encode()
+            if self.path.endswith("/messages"):
+                body = json.dumps(
+                    {
+                        "id": f"message-{len(requests)}",
+                        "type": "message",
+                        "role": "assistant",
+                        "model": "claude-sonnet-5-5",
+                        "content": [{"type": "text", "text": "synthetic answer"}],
+                        "stop_reason": "end_turn",
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 3, "output_tokens": 2},
+                    }
+                ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -93,5 +106,55 @@ def test_real_litellm_callback(provider):
             assert call["response"]["finish_reason"]["unified"] == "stop"
             assert "synthetic-secret" not in json.dumps(extension)
         assert len(requests) == 2
+
+    asyncio.run(run())
+
+
+def test_anthropic_multiturn_cache_blocks(provider):
+    from orca_model_calls.atif import envelope, validate
+    from orca_model_calls.messages import messages_to_wire
+
+    url, requests = provider
+
+    async def run():
+        recorder = Recorder()
+        llm = CapturingLiteLLM(
+            "anthropic/claude-sonnet-5-5",
+            recorder=recorder,
+            api_base=url,
+            api_key="synthetic-secret",
+            max_tokens=64,
+            thinking={"type": "between_tools"},
+            callback_timeout=3,
+        )
+        first = await llm.call("synthetic initial task")
+        await llm.call(
+            "synthetic terminal feedback",
+            message_history=[
+                {"role": "user", "content": "synthetic initial task"},
+                {"role": "assistant", "content": first.content},
+            ],
+        )
+        artifact = validate(envelope(recorder, "synthetic-anthropic-session"))
+        extension = artifact["extra"]["llmspec_model_calls"]
+        assert len(extension["calls"]) == len(requests) == 2
+        assert extension["rejected_calls"] == extension["dropped_calls"] == 0
+        assert not extension["truncated"]
+        call = extension["calls"][1]
+        assert call["messages"] == messages_to_wire(requests[1]["messages"])
+        assistant = call["messages"][1]
+        assert assistant == {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "synthetic answer",
+                    "providerOptions": {"cache_control": {"type": "ephemeral"}},
+                }
+            ],
+        }
+        assert call["runtime_provider"] == "anthropic"
+        assert call["response"]["finish_reason"]["unified"] == "stop"
+        assert "synthetic-secret" not in json.dumps(artifact)
 
     asyncio.run(run())

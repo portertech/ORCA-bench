@@ -503,6 +503,10 @@ uv sync --locked --group tests
 # Tiny paid-provider + Docker smoke (synthetic task, requires OPENAI_API_KEY):
 uv run harbor run -c configs/harbor_job_model_calls_smoke.yaml
 
+# Claude Sonnet 5.5 alternative, loading ANTHROPIC_API_KEY from ignored .env:
+uv run --env-file .env harbor run \
+  -c configs/harbor_job_model_calls_smoke_sonnet.yaml
+
 # Actual ORCA pilot: requires the snapshot setup and GRADIENT_API_KEY.
 # Replace TASK_NAME with one exact dataset task before running.
 ./run_harbor_cached.sh -c configs/harbor_job_orca_bench_agent_o11y.yaml \

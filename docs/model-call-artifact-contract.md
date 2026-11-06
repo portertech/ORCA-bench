@@ -39,7 +39,9 @@ Each call records `requested_model` (exact Harbor configuration), observed
 An unspecified effort is omitted, never invented as `none`.
 
 System message content is a string; user/assistant content is an ordered array
-of `{type: text, text: string}` parts. Assistant reasoning uses
+of `{type: text, text: string}` parts. The producer accepts assistant strings
+and single-text-block assistant lists (including Harbor's Anthropic cache markers)
+without flattening or relocating the part metadata. Assistant reasoning uses
 `{type: reasoning, text: string}` before its text part. User text-part lists are
 preserved. `cache_control` is preserved on the original message or part under
 inert `providerOptions.cache_control` (`type` and optional `ttl` strings, with

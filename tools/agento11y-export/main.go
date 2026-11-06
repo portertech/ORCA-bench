@@ -13,11 +13,21 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	a "github.com/grafana/agento11y/go/agento11y"
 )
+
+func apiEndpointFromEnv() string {
+	for _, key := range []string{"AGENTO11Y_API_ENDPOINT", "AGENTO11Y_CONTROL_ENDPOINT"} {
+		if endpoint := strings.TrimSpace(os.Getenv(key)); endpoint != "" {
+			return endpoint
+		}
+	}
+	return ""
+}
 
 func run(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("agento11y-export", flag.ContinueOnError)
@@ -38,7 +48,7 @@ func run(ctx context.Context, args []string) error {
 	dry := flags.Bool("dry-run", false, "validate and report associations without any network calls")
 	snapshot := flags.String("snapshot", "", "write sensitive dry-run payloads to a private JSON file")
 	stateDir := flags.String("state-dir", "", "publication receipts (default JOB/.agento11y-export)")
-	apiEndpoint := flags.String("api-endpoint", os.Getenv("AGENTO11Y_API_ENDPOINT"), "Agent Observability API endpoint")
+	apiEndpoint := flags.String("api-endpoint", apiEndpointFromEnv(), "Agent Observability API endpoint (AGENTO11Y_API_ENDPOINT or AGENTO11Y_CONTROL_ENDPOINT)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -86,7 +96,7 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("invalid Agent Observability environment configuration")
 	}
 	if cfg.GenerationExport.Endpoint == "" || *apiEndpoint == "" {
-		return errors.New("publication requires AGENTO11Y_ENDPOINT and --api-endpoint/AGENTO11Y_API_ENDPOINT")
+		return errors.New("publication requires AGENTO11Y_ENDPOINT and --api-endpoint, AGENTO11Y_API_ENDPOINT, or AGENTO11Y_CONTROL_ENDPOINT")
 	}
 	endpoint, err := url.Parse(*apiEndpoint)
 	if err != nil || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" {

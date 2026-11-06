@@ -53,7 +53,23 @@ For the complete Harbor lifecycle with a tiny synthetic Docker task:
 uv run harbor run -c configs/harbor_job_model_calls_smoke.yaml
 ```
 
-This requires Docker and `OPENAI_API_KEY`. It is **not an ORCA benchmark result**
+For Claude Sonnet 5.5 instead, using an ignored `.env` containing
+`ANTHROPIC_API_KEY`:
+
+```bash
+chmod 600 .env
+uv run --env-file .env harbor run \
+  -c configs/harbor_job_model_calls_smoke_sonnet.yaml
+```
+
+The Sonnet config uses `anthropic/claude-sonnet-5-5` and
+`thinking: {type: between_tools}`. This is Sonnet 5.5's documented text-only mode
+for requests without native tools; it does not validate adaptive-thinking payload
+support. See the [Sonnet 5.5 migration notes](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5#turn-off-up-front-thinking).
+`uv run --env-file` loads secrets into the process environment; neither Harbor nor
+the Go exporter should be assumed to load `.env` automatically.
+
+These smokes require Docker and the selected provider API key. They are **not ORCA benchmark results**
 and cannot establish realistic ORCA artifact sizes. The task only creates a file
 containing `OK`; its synthetic reward and details exercise exporter loading.
 
@@ -127,7 +143,7 @@ tracked files. Supported SDK settings include:
 | --- | --- |
 | `AGENTO11Y_ENDPOINT` | Generation ingest endpoint |
 | `AGENTO11Y_PROTOCOL` | `http` or `grpc` (not instrumentation-only) |
-| `AGENTO11Y_API_ENDPOINT` / `--api-endpoint` | Experiment/score/artifact API |
+| `AGENTO11Y_API_ENDPOINT` / `--api-endpoint` | Experiment/score/artifact API (`AGENTO11Y_CONTROL_ENDPOINT` is a fallback alias) |
 | `AGENTO11Y_AUTH_MODE` | Supported SDK mode: `basic`, `bearer`, `tenant`, `none` |
 | `AGENTO11Y_AUTH_TENANT_ID` | Deployment tenant identity where required |
 | `AGENTO11Y_AUTH_TOKEN` | Deployment token/password where required |
@@ -136,6 +152,22 @@ tracked files. Supported SDK settings include:
 
 The SDK also supports transport/queue/timeouts via its documented settings.
 Generation export must not be disabled; the command rejects `none`/OTel-only modes.
+
+`--api-endpoint` takes precedence over `AGENTO11Y_API_ENDPOINT`, which takes
+precedence over `AGENTO11Y_CONTROL_ENDPOINT`. Credentials alone are not sufficient:
+you must also supply an evaluator ID/version and confirm the intended destination.
+
+To load a root `.env` for an exporter dry-run, run from the repository root:
+
+```bash
+uv run --env-file .env go -C tools/agento11y-export run . \
+  --dry-run --harbor-timezone HOST_TIMEZONE \
+  --evaluator-id DEPLOYMENT_EVALUATOR_ID \
+  --evaluator-version DEPLOYMENT_EVALUATOR_VERSION ../../jobs/JOB
+```
+
+`HOST_TIMEZONE` is the IANA timezone of the machine that ran Harbor, not
+necessarily UTC. Replace the evaluator placeholders with your deployment values.
 
 After a dry-run audit, omit `--dry-run`:
 
@@ -240,6 +272,10 @@ Implemented and locally exercised:
 - One complete synthetic Docker/Harbor run: two successful calls, zero loss,
   ordinary and strict trajectories, verifier reward 1.0, Python/Go validation and
   exporter dry-run. Real artifacts remain under ignored `jobs/`, not in fixtures.
+- Claude Sonnet 5.5 text-only synthetic Harbor smoke: two calls, zero loss and
+  reward 1.0; credential exclusion and exporter dry-run passed. This surfaced and
+  fixed the mapping of cached assistant text blocks; the original incomplete
+  capture was retained unchanged, and the passing capture came from a fresh run.
 - Real Go SDK HTTP publication tests for associations, order, exact artifact bytes,
   failure status, score retries and receipt replay protection.
 

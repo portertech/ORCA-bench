@@ -1,0 +1,20 @@
+# Paid-provider synthetic smoke, not an ORCA benchmark/leaderboard task.
+# Requires Docker and ANTHROPIC_API_KEY from an ignored .env. From repo root:
+# uv run --env-file .env harbor run -c configs/harbor_job_model_calls_smoke_sonnet.yaml
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_model_calls.terminus:AgentO11yTerminus2
+    model_name: anthropic/claude-sonnet-5-5
+    kwargs:
+      max_turns: 3
+      record_terminal_session: false
+      llm_kwargs:
+        max_tokens: 1024
+        # Sonnet 5.5's text-only mode; "disabled" is no longer accepted.
+        # No native tools are used by this synthetic Terminus task.
+        thinking:
+          type: between_tools
+tasks:
+  - path: tests/fixtures/harbor_capture_smoke

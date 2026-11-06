@@ -8,6 +8,48 @@ from orca_model_calls.messages import (
 from datetime import datetime, timezone
 
 
+def test_assistant_cached_text_block():
+    message = {
+        "role": "assistant",
+        "reasoning_content": "synthetic reasoning",
+        "content": [
+            {
+                "type": "text",
+                "text": "synthetic answer",
+                "cache_control": {"type": "ephemeral", "ttl": "5m"},
+            }
+        ],
+    }
+    assert messages_to_wire([message]) == [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "reasoning", "text": "synthetic reasoning"},
+                {
+                    "type": "text",
+                    "text": "synthetic answer",
+                    "providerOptions": {
+                        "cache_control": {"type": "ephemeral", "ttl": "5m"}
+                    },
+                },
+            ],
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        [],
+        [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}],
+        [{"type": "image_url", "image_url": "synthetic"}],
+    ],
+)
+def test_assistant_blocks_fail_closed(content):
+    with pytest.raises(Unrepresentable):
+        messages_to_wire([{"role": "assistant", "content": content}])
+
+
 def test_conversion():
     cache = {"type": "ephemeral"}
     messages = messages_to_wire(

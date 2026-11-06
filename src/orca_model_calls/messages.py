@@ -74,7 +74,14 @@ def messages_to_wire(messages):
             parts.append({"type": "reasoning", "text": reasoning})
         if isinstance(content, str):
             parts.append({"type": "text", "text": content})
-        elif role == "user" and isinstance(content, list):
+        elif role in {"user", "assistant"} and isinstance(content, list):
+            # Harbor adds Anthropic cache_control by turning earlier assistant
+            # strings into a one-element text-block list. Preserve the part and
+            # its cache marker; do not flatten or concatenate content blocks.
+            if role == "assistant" and len(content) != 1:
+                raise Unrepresentable(
+                    "assistant content requires exactly one text block"
+                )
             for raw in content:
                 part = object_dict(raw)
                 if (
