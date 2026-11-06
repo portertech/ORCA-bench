@@ -31,7 +31,9 @@ dependencies = [
     "python-dotenv",
     "huggingface-hub",
     "python-slugify",
-    "harbor>=0.20.0",
+    "harbor==0.20.0",
+    "litellm==1.89.3",
+    "jsonschema>=4.23,<5",
     "gradient>=3.10.1",
     "matplotlib>=3.10.8",
     "openpyxl>=3.1.5",
@@ -40,6 +42,12 @@ dependencies = [
     "pymupdf>=1.27.2.2",
     "scikit-learn",
 ]
+
+[project.scripts]
+orca-model-calls = "orca_model_calls.cli:main"
+
+[tool.setuptools.package-data]
+orca_model_calls = ["schema.json"]
 
 [dependency-groups]
 dev = [

@@ -1,0 +1,21 @@
+# Opt-in capture only. Captured prompts may contain secrets: never commit jobs/.
+# Start at concurrency one and filter to one task with Harbor's --task-name.
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_model_calls.terminus:AgentO11yTerminus2
+    model_name: gradient_ai/anthropic-claude-4.6-sonnet
+    kwargs:
+      temperature: 1
+      reasoning_effort: medium
+      capture_byte_limit: 67108864
+      capture_call_byte_limit: 4194304
+      llm_kwargs:
+        max_tokens: 16384
+datasets:
+  - registry_url: https://huggingface.co/datasets/orca-bench/orca-bench-harbor-tasks/resolve/main/registry.json
+    name: orca-bench-harbor-tasks
+    version: v0.0.0
+    task_names:
+      - "*"

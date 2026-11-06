@@ -1,0 +1,83 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "synthetic-session",
+  "trajectory_id": "synthetic-trajectory",
+  "agent": {
+    "name": "terminus-2",
+    "version": "2.0.0+orca-model-calls.1"
+  },
+  "steps": [],
+  "final_metrics": {},
+  "extra": {
+    "llmspec_model_calls": {
+      "schema_version": "llmspec.model-calls.v1",
+      "capture_point": "backend_model_boundary",
+      "execution_generation_id": "synthetic-execution",
+      "capture_byte_limit": 67108864,
+      "calls": [
+        {
+          "request_id": "synthetic-request",
+          "execution_generation_id": "synthetic-execution",
+          "ordinal": 1,
+          "step_number": 1,
+          "requested_model": "synthetic/requested",
+          "runtime_provider": "synthetic",
+          "runtime_model": "synthetic-runtime",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "synthetic task"
+                }
+              ]
+            }
+          ],
+          "tools": [],
+          "response": {
+            "id": "synthetic-response",
+            "timestamp": "2023-11-14T22:13:20+00:00",
+            "model": "synthetic-runtime",
+            "message": {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "reasoning",
+                  "text": "synthetic reasoning"
+                },
+                {
+                  "type": "text",
+                  "text": "synthetic answer"
+                }
+              ]
+            },
+            "finish_reason": {
+              "raw": "stop",
+              "unified": "stop"
+            },
+            "usage": {
+              "input_tokens": {
+                "total": 10
+              },
+              "output_tokens": {
+                "total": 2
+              },
+              "raw": {
+                "prompt_tokens": 10,
+                "completion_tokens": 2,
+                "total_tokens": 12
+              }
+            },
+            "request_id": "synthetic-request",
+            "step_number": 1
+          },
+          "reasoning_effort": "medium"
+        }
+      ],
+      "truncated": false,
+      "dropped_calls": 0,
+      "rejected_calls": 0
+    }
+  }
+}
