@@ -130,6 +130,34 @@ def test_reject_unsafe_queries_before_mcp(tmp_path, name, args):
     assert "error" in result and not c.invocations
 
 
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("grafana_get_dashboard_by_uid", {"uid": "../../admin/settings"}),
+        ("grafana_get_dashboard_property", {"uid": "%2e%2e%2fadmin"}),
+        ("grafana_get_dashboard_summary", {"uid": "%252fadmin"}),
+        ("grafana_get_dashboard_panel_queries", {"uid": "x?redirect=/admin"}),
+        ("grafana_search_dashboards", {"folderUid": "https://example.invalid"}),
+        ("grafana_list_prometheus_label_values", {"labelName": "../../admin"}),
+        ("grafana_get_datasource", {"name": "../admin/settings"}),
+        ("grafana_get_datasource", {"name": "unapproved-datasource"}),
+    ],
+)
+def test_typed_read_path_identifiers_are_confined(name, args):
+    with pytest.raises(ValueError):
+        ToolRouter.validate_query(name, args)
+
+
+def test_valid_typed_read_identifiers():
+    ToolRouter.validate_query(
+        "grafana_get_dashboard_by_uid", {"uid": "synthetic-Dash_1"}
+    )
+    ToolRouter.validate_query("grafana_get_datasource", {"name": "webstore-logs"})
+    ToolRouter.validate_query(
+        "grafana_list_prometheus_label_values", {"labelName": "__name__"}
+    )
+
+
 def test_result_bounding_is_explicit(tmp_path):
     r, c = router(tmp_path)
     r.output_limit = 20

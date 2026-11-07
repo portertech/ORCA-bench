@@ -118,7 +118,7 @@ async def run(config, *, client=None, completion=None):
             "version": VERSION,
             "mcp_grafana": "2.2.0",
             "transport": "stdio",
-            "policy": "query-only-v1",
+            "policy": "query-only-v2",
             "grafana_auth": "task-anonymous-admin-read-only-tools",
             "requested_model": config["model"],
             "options": config["options"],

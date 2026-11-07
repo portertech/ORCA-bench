@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlencode
@@ -319,6 +320,25 @@ class ToolRouter:
 
     @staticmethod
     def validate_query(name, args):
+        # Identifiers can become URL path segments in upstream typed tools. Do not
+        # rely on their hints or URL-escaping behavior to prevent route traversal.
+        for key in ("uid", "folderUid"):
+            if (
+                key in args
+                and args[key] != ""
+                and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", args[key])
+            ):
+                raise ValueError("unsafe Grafana identifier")
+        if "labelName" in args and not re.fullmatch(
+            r"[A-Za-z_][A-Za-z0-9_]*", args["labelName"]
+        ):
+            raise ValueError("unsafe Prometheus label path")
+        if name == "grafana_get_datasource" and args.get("name") not in (
+            None,
+            "",
+            *DATASOURCES,
+        ):
+            raise ValueError("unknown datasource name")
         uid = args.get("datasourceUid") or args.get("uid")
         if (
             uid is not None
