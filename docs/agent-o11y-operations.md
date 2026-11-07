@@ -310,6 +310,32 @@ local journaling alone cannot prove network exactly-once delivery. Scope receipt
 to one destination/tenant and preserve them. Never point this workflow at production
 until the gates below pass.
 
+## Native cached-token probe (explicit, staging only)
+
+The v2 exporter declares inclusive LiteLLM input semantics through the public SDK:
+cache-read tokens are a subset of input, not an additional bucket. Verify this
+with a small synthetic probe before trusting aggregate token charts. From
+`tools/agento11y-export/`, with staging SDK credentials and deployment-owned
+`ORCA_EVALUATOR_ID` / `ORCA_EVALUATOR_VERSION`:
+
+```bash
+ORCA_STAGING_NATIVE_TOKEN_PROBE=1 \
+ORCA_STAGING_RECEIPT_DIR=/PRIVATE/UNTRACKED/native-probe-receipts \
+  go test -count=1 -run '^TestStagingNativeTokenSemantics$' -v
+```
+
+This calls **no model provider**. It publishes a clearly named non-benchmark
+synthetic v2 fixture with input=20, output=4 and cache-read=8. Pull the printed
+experiment with GCX and check that generation, trial and aggregate totals are
+**24**, not 32. Preserve the snapshot and receipt. The test is skipped by default;
+do not run it against production or without approval. Native agent setup and
+model/telemetry smoke instructions are in [the MCP runbook](grafana-mcp-agent.md).
+
+An exporter mapping change intentionally changes the publication fingerprint.
+Do not bypass a changed-plan error by deleting old receipts or replaying artifacts.
+Use fresh runs, or a separately approved reconciliation workflow for historical
+publications; updating the exporter does not retroactively repair stored records.
+
 ## Upload-size probe (explicit, staging only)
 
 From `tools/agento11y-export/`, with staging SDK environment and a deployment-owned

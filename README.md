@@ -493,10 +493,11 @@ backend captures.
 > do not redact captured prompts in place.
 
 Dependencies are pinned to Harbor **0.20.0**, LiteLLM **1.89.3**, and the exporter
-uses `github.com/grafana/agento11y/go` **v0.18.0**. The adapter uses official
+uses `github.com/grafana/agento11y/go` **v0.18.0**. The Terminus/v1 adapter uses official
 per-call async LiteLLM callbacks and Harbor's existing usage-extraction extension
-point; no patched Harbor install is required. Responses API, multi-step/resume,
-trajectory splitting, media and native tool calls are not supported initially.
+point; no capture-related Harbor patch is required. That adapter does not support
+Responses API, multi-step/resume, trajectory splitting, media or native tool calls.
+For native Grafana MCP tools, use the separate opt-in agent below.
 
 ```bash
 uv sync --locked --group tests
@@ -537,3 +538,33 @@ probes and remaining deployment checks. The [versioned public artifact
 contract](docs/model-call-artifact-contract.md) defines producer-independent
 exports: compatible consumers use the unmodified GCX bundle without an
 ORCA-specific rewrite.
+
+### Native Grafana MCP agent
+
+A separate `orca_grafana_mcp.agent:GrafanaMCPAgent` runs a native-tool Python loop
+inside the task container. It uses the official MCP client and pinned
+mcp-grafana server over stdio to query the task's Grafana-backed metrics, OpenSearch
+logs and Jaeger traces. It also provides bounded source reads, writes the official
+`/app/report.md`, and captures native tool histories under the **v2** contract.
+Terminus remains unchanged; simply declaring `mcp_servers` does not give Terminus
+a native MCP client.
+
+Prepare the isolated Linux AMD64 runtime, then run one fresh released task using
+the same verified snapshot cache as above:
+
+```bash
+# Requires Python 3.13 with pip; downloads checksum-verified public dependencies.
+python3.13 tools/grafana-mcp-runtime/prepare.py
+
+# Requires ANTHROPIC_API_KEY + OPENAI_API_KEY and the optional Harbor cache patch.
+uv run --env-file .env python tools/grafana-mcp-runtime/smoke.py \
+  --model sonnet --snapshot-cache /ABSOLUTE/CACHE/IMAGE_ID_PREFIX
+
+# Or --model qwen with FIREWORKS_API_KEY/FIREWORKS_AI_API_KEY + OPENAI_API_KEY.
+```
+
+These configs retain normal task resources/timeouts and concurrency one. The
+launcher checks actual trial success and model-issued MCP calls; it does not
+publish to the leaderboard or Agent Observability automatically. The task snapshot
+uses anonymous Admin Grafana access; query-only tool filtering is not Viewer RBAC.
+See [native MCP setup, security, tests and publication](docs/grafana-mcp-agent.md).

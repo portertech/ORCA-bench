@@ -4,7 +4,9 @@ This repository owns the public producer contract identified by
 `llmspec.model-calls.v1`. The normative structural schema is
 [`schemas/llmspec-model-calls-v1.schema.json`](../schemas/llmspec-model-calls-v1.schema.json).
 The semantic rules below supplement JSON Schema. The deterministic examples in
-`tests/fixtures/model_calls/` contain synthetic data only.
+`tests/fixtures/model_calls/` contain synthetic data only. Native-tool agents use
+the separate [v2 contract](model-call-artifact-contract-v2.md); v1 semantics below
+are not widened by that addition.
 
 ## Envelope and identities
 
