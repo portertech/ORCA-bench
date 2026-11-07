@@ -1,0 +1,4 @@
+# Isolated worker only; do not change the host/Terminus dependency pins.
+litellm==1.89.3
+mcp==2.3.0
+jsonschema==4.26.0

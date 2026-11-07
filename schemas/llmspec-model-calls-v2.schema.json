@@ -1,0 +1,723 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "ATIF-v1.7"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trajectory_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "enum": [
+              "user",
+              "agent",
+              "environment"
+            ]
+          }
+        },
+        "required": [
+          "step_id",
+          "source"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "final_metrics": {
+      "type": "object"
+    },
+    "extra": {
+      "type": "object",
+      "properties": {
+        "llmspec_model_calls": {
+          "$ref": "#/$defs/extension"
+        }
+      },
+      "required": [
+        "llmspec_model_calls"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "session_id",
+    "trajectory_id",
+    "agent",
+    "steps",
+    "final_metrics",
+    "extra"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:orca-bench:llmspec-model-calls-v2",
+  "$defs": {
+    "assistant": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "const": "assistant"
+        },
+        "content": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasoning_content": {
+          "type": "string"
+        },
+        "thinking_blocks": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "const": "thinking"
+                  },
+                  "thinking": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "thinking",
+                  "signature"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "const": "redacted_thinking"
+                  },
+                  "data": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toolCall"
+          }
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "message": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "role": {
+              "enum": [
+                "system",
+                "user"
+              ]
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "role",
+            "content"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "role": {
+              "const": "assistant"
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reasoning_content": {
+              "type": "string"
+            },
+            "thinking_blocks": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "thinking"
+                      },
+                      "thinking": {
+                        "type": "string"
+                      },
+                      "signature": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "thinking",
+                      "signature"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "redacted_thinking"
+                      },
+                      "data": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "data"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "tool_calls": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/toolCall"
+              }
+            }
+          },
+          "required": [
+            "role",
+            "content"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "role": {
+              "const": "tool"
+            },
+            "content": {
+              "type": "string"
+            },
+            "tool_call_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "role",
+            "content",
+            "tool_call_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message": {
+          "$ref": "#/$defs/assistant"
+        },
+        "finish_reason": {
+          "type": "object",
+          "properties": {
+            "raw": {
+              "type": "string",
+              "minLength": 1
+            },
+            "unified": {
+              "enum": [
+                "stop",
+                "length",
+                "content-filter",
+                "tool-calls",
+                "unknown"
+              ]
+            }
+          },
+          "required": [
+            "raw",
+            "unified"
+          ],
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "properties": {
+                "raw": {
+                  "const": "stop"
+                },
+                "unified": {
+                  "const": "stop"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "length"
+                },
+                "unified": {
+                  "const": "length"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "content_filter"
+                },
+                "unified": {
+                  "const": "content-filter"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "tool_calls"
+                },
+                "unified": {
+                  "const": "tool-calls"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "const": "function_call"
+                },
+                "unified": {
+                  "const": "tool-calls"
+                }
+              }
+            },
+            {
+              "properties": {
+                "raw": {
+                  "not": {
+                    "enum": [
+                      "stop",
+                      "length",
+                      "content_filter",
+                      "tool_calls",
+                      "function_call"
+                    ]
+                  }
+                },
+                "unified": {
+                  "const": "unknown"
+                }
+              }
+            }
+          ]
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "input_tokens": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "output_tokens": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "raw": {
+              "type": "object",
+              "properties": {
+                "prompt_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "completion_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "total_tokens": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prompt_tokens_details": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "completion_tokens_details": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "input_tokens",
+            "output_tokens",
+            "raw"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "model",
+        "request_id",
+        "step_number",
+        "message",
+        "finish_reason",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    "call": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "execution_generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "step_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requested_model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasoning_effort": {
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/message"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        },
+        "request_options": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "reasoning_effort": {
+              "enum": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            },
+            "thinking": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "enum": [
+                    "disabled",
+                    "between_tools"
+                  ]
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "tool_choice": {
+              "const": "auto"
+            }
+          },
+          "required": [
+            "max_tokens",
+            "tool_choice"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "request_id",
+        "execution_generation_id",
+        "ordinal",
+        "step_number",
+        "requested_model",
+        "runtime_provider",
+        "runtime_model",
+        "messages",
+        "tools",
+        "response",
+        "request_options"
+      ],
+      "additionalProperties": false
+    },
+    "extension": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "llmspec.model-calls.v2"
+        },
+        "capture_point": {
+          "const": "litellm_chat_boundary"
+        },
+        "execution_generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capture_byte_limit": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/call"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "dropped_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finalized": {
+          "type": "boolean"
+        },
+        "pending_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uncertain_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "successful_responses": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "schema_version",
+        "capture_point",
+        "execution_generation_id",
+        "capture_byte_limit",
+        "calls",
+        "truncated",
+        "dropped_calls",
+        "rejected_calls",
+        "finalized",
+        "pending_requests",
+        "uncertain_requests",
+        "successful_responses"
+      ],
+      "additionalProperties": false
+    },
+    "toolCall": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "function"
+        },
+        "function": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "arguments": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "arguments"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "function"
+      ],
+      "additionalProperties": false
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "function"
+        },
+        "function": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string"
+            },
+            "parameters": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "parameters"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "function"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -54,11 +54,17 @@ def envelope(recorder, session_id, trajectory=None, trajectory_id=None):
 
 
 def validate(artifact):
-    # The packaged copy and repository schema are the same file (symlink in source).
-    schema = loads(files("orca_model_calls").joinpath("schema.json").read_text())
-    jsonschema.Draft202012Validator(
-        schema, format_checker=jsonschema.FormatChecker()
-    ).validate(artifact)
+    # Versions are dispatched explicitly; never reinterpret a native artifact as v1.
+    version = artifact.get("extra", {}).get("llmspec_model_calls", {}).get("schema_version")
+    native = version == "llmspec.model-calls.v2"
+    if native:
+        from .v2.validation import validate as validate_native
+        validate_native(artifact)
+    else:
+        schema = loads(files("orca_model_calls").joinpath("schema.json").read_text())
+        jsonschema.Draft202012Validator(
+            schema, format_checker=jsonschema.FormatChecker()
+        ).validate(artifact)
     encode(artifact)  # Reject non-finite values even inside inert metadata.
     ext = artifact["extra"]["llmspec_model_calls"]
 
@@ -72,7 +78,8 @@ def validate(artifact):
             for child in value:
                 strict_integers(child)
 
-    strict_integers(ext)
+    if not native:
+        strict_integers(ext)
     ids, response_ids, ordinals = set(), set(), []
     for call in ext["calls"]:
         ordinal = call["ordinal"]

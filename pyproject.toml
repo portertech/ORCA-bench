@@ -47,7 +47,8 @@ dependencies = [
 orca-model-calls = "orca_model_calls.cli:main"
 
 [tool.setuptools.package-data]
-orca_model_calls = ["schema.json"]
+orca_model_calls = ["schema.json", "schema-v2.json"]
+orca_grafana_mcp = ["prompts/*.txt"]
 
 [dependency-groups]
 dev = [
