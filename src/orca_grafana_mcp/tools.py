@@ -1,8 +1,8 @@
 """Closed native-tool routing: task Grafana reads and bounded source inspection."""
+
 import hashlib
 import json
 from pathlib import Path
-import re
 from datetime import datetime
 from urllib.parse import urlencode
 
@@ -12,25 +12,86 @@ from orca_model_calls.atif import loads
 from orca_model_calls.capture import encode
 
 ALLOWED = {
-    "list_datasources", "get_datasource", "search_dashboards", "get_dashboard_by_uid",
-    "get_dashboard_summary", "get_dashboard_property", "get_dashboard_panel_queries",
-    "list_prometheus_metric_names", "list_prometheus_metric_metadata",
-    "list_prometheus_label_names", "list_prometheus_label_values", "query_prometheus",
+    "list_datasources",
+    "get_datasource",
+    "search_dashboards",
+    "get_dashboard_by_uid",
+    "get_dashboard_summary",
+    "get_dashboard_property",
+    "get_dashboard_panel_queries",
+    "list_prometheus_metric_names",
+    "list_prometheus_metric_metadata",
+    "list_prometheus_label_names",
+    "list_prometheus_label_values",
+    "query_prometheus",
     "query_elasticsearch",
 }
-REQUIRED = {"list_datasources", "query_prometheus", "query_elasticsearch", "grafana_api_request"}
+REQUIRED = {
+    "list_datasources",
+    "query_prometheus",
+    "query_elasticsearch",
+    "grafana_api_request",
+}
 DATASOURCES = {"webstore-metrics", "webstore-logs", "webstore-traces"}
-SOURCE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".mod", ".sum", ".java", ".kt",
-                     ".cs", ".cpp", ".h", ".c", ".rs", ".toml", ".yaml", ".yml", ".json", ".md",
-                     ".txt", ".properties", ".proto", ".sql", ".sh", ".xml", ".gradle"}
-BLOCKED = {"tests", "test", "solutions", "solution", "verifier", ".git", "__pycache__", "node_modules",
-           "credentials", ".env", "secrets", "vendor"}
+SOURCE_EXTENSIONS = {
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".go",
+    ".mod",
+    ".sum",
+    ".java",
+    ".kt",
+    ".cs",
+    ".cpp",
+    ".h",
+    ".c",
+    ".rs",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".md",
+    ".txt",
+    ".properties",
+    ".proto",
+    ".sql",
+    ".sh",
+    ".xml",
+    ".gradle",
+}
+BLOCKED = {
+    "tests",
+    "test",
+    "solutions",
+    "solution",
+    "verifier",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    "credentials",
+    ".env",
+    "secrets",
+    "vendor",
+}
 
 
 def definition(name, description, properties, required=()):
-    return {"type": "function", "function": {"name": name, "description": description,
-            "parameters": {"type": "object", "properties": properties,
-                           "required": list(required), "additionalProperties": False}}}
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": list(required),
+                "additionalProperties": False,
+            },
+        },
+    }
 
 
 def absolute_time(value):
@@ -43,7 +104,14 @@ def absolute_time(value):
 
 
 class ToolRouter:
-    def __init__(self, client, catalog, *, source_root="/app/opentelemetry-demo/src", output_limit=32000):
+    def __init__(
+        self,
+        client,
+        catalog,
+        *,
+        source_root="/app/opentelemetry-demo/src",
+        output_limit=32000,
+    ):
         self.client = client
         self.source_root = Path(source_root).resolve()
         self.output_limit = output_limit
@@ -56,28 +124,75 @@ class ToolRouter:
             if tool.name in ALLOWED:
                 name = "grafana_" + tool.name
                 schema = tool.input_schema
-                self.definitions.append({"type": "function", "function": {
-                    "name": name, "description": tool.description or "Read task-local Grafana",
-                    "parameters": schema}})
+                self.definitions.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": tool.description
+                            or "Read task-local Grafana",
+                            "parameters": schema,
+                        },
+                    }
+                )
                 self.routing[name] = tool.name
         text = {"type": "string"}
         number = {"type": "integer", "minimum": 1, "maximum": 100}
-        self.definitions.extend([
-            definition("jaeger_services", "List Jaeger services through Grafana's datasource proxy.", {}),
-            definition("jaeger_search", "Search historical Jaeger traces. Times are absolute RFC3339 with timezone.",
-                       {"service": text, "start": text, "end": text, "limit": number, "tags": text,
-                        "min_duration": text}, ["service", "start", "end"]),
-            definition("jaeger_trace", "Get one Jaeger trace through Grafana.",
-                       {"trace_id": {"type": "string", "pattern": "^[a-fA-F0-9]{16,32}$"}}, ["trace_id"]),
-            definition("source_list", "List bounded source files. Paths relative to the service source root.",
-                       {"path": text}),
-            definition("source_read", "Read source text, with explicit line pagination. Paths relative to source root.",
-                       {"path": text, "offset": {"type": "integer", "minimum": 1},
-                        "lines": {"type": "integer", "minimum": 1, "maximum": 300}}, ["path"]),
-            definition("source_search", "Literal case-sensitive search of bounded service source files.",
-                       {"path": text, "text": {"type": "string", "minLength": 1, "maxLength": 200}}, ["text"]),
-        ])
-        self.schemas = {t["function"]["name"]: t["function"]["parameters"] for t in self.definitions}
+        self.definitions.extend(
+            [
+                definition(
+                    "jaeger_services",
+                    "List Jaeger services through Grafana's datasource proxy.",
+                    {},
+                ),
+                definition(
+                    "jaeger_search",
+                    "Search historical Jaeger traces. Times are absolute RFC3339 with timezone.",
+                    {
+                        "service": text,
+                        "start": text,
+                        "end": text,
+                        "limit": number,
+                        "tags": text,
+                        "min_duration": text,
+                    },
+                    ["service", "start", "end"],
+                ),
+                definition(
+                    "jaeger_trace",
+                    "Get one Jaeger trace through Grafana.",
+                    {"trace_id": {"type": "string", "pattern": "^[a-fA-F0-9]{16,32}$"}},
+                    ["trace_id"],
+                ),
+                definition(
+                    "source_list",
+                    "List bounded source files. Paths relative to the service source root.",
+                    {"path": text},
+                ),
+                definition(
+                    "source_read",
+                    "Read source text, with explicit line pagination. Paths relative to source root.",
+                    {
+                        "path": text,
+                        "offset": {"type": "integer", "minimum": 1},
+                        "lines": {"type": "integer", "minimum": 1, "maximum": 300},
+                    },
+                    ["path"],
+                ),
+                definition(
+                    "source_search",
+                    "Literal case-sensitive search of bounded service source files.",
+                    {
+                        "path": text,
+                        "text": {"type": "string", "minLength": 1, "maxLength": 200},
+                    },
+                    ["text"],
+                ),
+            ]
+        )
+        self.schemas = {
+            t["function"]["name"]: t["function"]["parameters"] for t in self.definitions
+        }
         if len(self.schemas) != len(self.definitions):
             raise ValueError("duplicate native tool names")
         self.fingerprint = hashlib.sha256(encode(self.definitions)).hexdigest()
@@ -101,9 +216,15 @@ class ToolRouter:
                 raise ValueError("source file absent/too large")
             lines = path.read_text().splitlines()
             offset = args.get("offset", 1) - 1
-            return {"lines": [{"line": i + 1, "text": line} for i, line in
-                              enumerate(lines[offset:offset + args.get("lines", 100)], offset)],
-                    "total_lines": len(lines)}
+            return {
+                "lines": [
+                    {"line": i + 1, "text": line}
+                    for i, line in enumerate(
+                        lines[offset : offset + args.get("lines", 100)], offset
+                    )
+                ],
+                "total_lines": len(lines),
+            }
         files, hits, examined = [], [], 0
         iterator = path.rglob("*") if path.is_dir() else [path]
         for candidate in iterator:
@@ -122,14 +243,23 @@ class ToolRouter:
                 if len(files) >= 200:
                     break
             elif candidate.stat().st_size <= 256 * 1024:
-                for index, line in enumerate(candidate.read_text(errors="replace").splitlines(), 1):
+                for index, line in enumerate(
+                    candidate.read_text(errors="replace").splitlines(), 1
+                ):
                     if args["text"] in line:
-                        hits.append({"path": relative, "line": index, "text": line[:1000]})
+                        hits.append(
+                            {"path": relative, "line": index, "text": line[:1000]}
+                        )
                         if len(hits) >= 100:
                             break
                 if len(hits) >= 100:
                     break
-        return {"files": files, "hits": hits, "bounded": True, "files_examined": examined}
+        return {
+            "files": files,
+            "hits": hits,
+            "bounded": True,
+            "files_examined": examined,
+        }
 
     async def dispatch(self, name, arguments, call_id):
         try:
@@ -146,25 +276,40 @@ class ToolRouter:
                 elif name == "jaeger_trace":
                     endpoint = prefix + "traces/" + args["trace_id"]
                 else:
-                    start, end = absolute_time(args["start"]), absolute_time(args["end"])
+                    start, end = absolute_time(args["start"]), absolute_time(
+                        args["end"]
+                    )
                     if end <= start or (end - start).total_seconds() > 86400:
                         raise ValueError("invalid trace query window")
-                    query = {"service": args["service"], "start": int(start.timestamp() * 1_000_000),
-                             "end": int(end.timestamp() * 1_000_000), "limit": args.get("limit", 20)}
+                    query = {
+                        "service": args["service"],
+                        "start": int(start.timestamp() * 1_000_000),
+                        "end": int(end.timestamp() * 1_000_000),
+                        "limit": args.get("limit", 20),
+                    }
                     if "tags" in args:
                         query["tags"] = args["tags"]
                     if "min_duration" in args:
                         query["minDuration"] = args["min_duration"]
                     endpoint = prefix + "traces?" + urlencode(query)
-                result = await self.client.call("grafana_api_request", {"method": "GET", "endpoint": endpoint}, call_id)
+                result = await self.client.call(
+                    "grafana_api_request",
+                    {"method": "GET", "endpoint": endpoint},
+                    call_id,
+                )
             else:
                 self.validate_query(name, args)
                 result = await self.client.call(self.routing[name], args, call_id)
             text = encode(result).decode()
             if len(text) > self.output_limit:
-                text = json.dumps({"bounded": True, "original_characters": len(text),
-                                   "prefix": text[:self.output_limit],
-                                   "notice": "Result clipped; narrow query or request fewer fields/documents."})
+                text = json.dumps(
+                    {
+                        "bounded": True,
+                        "original_characters": len(text),
+                        "prefix": text[: self.output_limit],
+                        "notice": "Result clipped; narrow query or request fewer fields/documents.",
+                    }
+                )
             return text
         except (ValueError, KeyError, OSError, jsonschema.ValidationError):
             # No exception text: it can contain paths, query contents, or credentials.
@@ -175,17 +320,28 @@ class ToolRouter:
     @staticmethod
     def validate_query(name, args):
         uid = args.get("datasourceUid") or args.get("uid")
-        if uid is not None and uid not in DATASOURCES and name == "grafana_get_datasource":
+        if (
+            uid is not None
+            and uid not in DATASOURCES
+            and name == "grafana_get_datasource"
+        ):
             raise ValueError("unknown datasource")
         if "datasourceUid" in args:
-            expected = "webstore-logs" if name == "grafana_query_elasticsearch" else "webstore-metrics"
+            expected = (
+                "webstore-logs"
+                if name == "grafana_query_elasticsearch"
+                else "webstore-metrics"
+            )
             if args["datasourceUid"] != expected:
                 raise ValueError("wrong datasource")
         if any(args.get(k) for k in ("projectName", "scoping", "headers")):
             raise ValueError("external query options denied")
         if name in {"grafana_query_prometheus", "grafana_query_elasticsearch"}:
             end = absolute_time(args["endTime"])
-            needs_start = name == "grafana_query_elasticsearch" or args.get("queryType", "instant") == "range"
+            needs_start = (
+                name == "grafana_query_elasticsearch"
+                or args.get("queryType", "instant") == "range"
+            )
             if needs_start or "startTime" in args:
                 start = absolute_time(args["startTime"])
                 duration = (end - start).total_seconds()
@@ -201,5 +357,8 @@ class ToolRouter:
         for key in ("limit", "size", "limitPerMetric"):
             if key in args and not 1 <= args[key] <= 100:
                 raise ValueError("query limit out of bounds")
-        if name == "grafana_query_elasticsearch" and args.get("index", "otel-logs-*") != "otel-logs-*":
+        if (
+            name == "grafana_query_elasticsearch"
+            and args.get("index", "otel-logs-*") != "otel-logs-*"
+        ):
             raise ValueError("wrong log index")

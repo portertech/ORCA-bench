@@ -1,16 +1,20 @@
 """Per-trial stdio session. No model credentials are passed to the child."""
-import asyncio
+
 from contextlib import asynccontextmanager
-import json
 import os
-from pathlib import Path
 from urllib.parse import urlsplit
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-SERVER_ARGS = ["--transport", "stdio", "--disable-write", "--enabled-tools",
-               "search,datasource,dashboard,prometheus,elasticsearch,api", "--usage-stats=disabled"]
+SERVER_ARGS = [
+    "--transport",
+    "stdio",
+    "--disable-write",
+    "--enabled-tools",
+    "search,datasource,dashboard,prometheus,elasticsearch,api",
+    "--usage-stats=disabled",
+]
 TASK_GRAFANA_URL = "http://frontend-proxy:8080/grafana"
 
 
@@ -39,9 +43,12 @@ class GrafanaSession:
 
     async def discover(self):
         from mcp import types
+
         catalog, cursors, cursor = [], set(), None
         while True:
-            page = await self.session.list_tools(params=types.PaginatedRequestParams(cursor=cursor) if cursor else None)
+            page = await self.session.list_tools(
+                params=types.PaginatedRequestParams(cursor=cursor) if cursor else None
+            )
             catalog.extend(page.tools)
             cursor = page.next_cursor
             if not cursor:
@@ -58,8 +65,14 @@ class GrafanaSession:
         # The dispatcher, not the model, selects actual MCP names/routes.
         result = await self.session.call_tool(name, arguments, read_timeout_seconds=60)
         raw = result.model_dump(mode="json", exclude_none=True, by_alias=True)
-        self.invocations.append({"tool_call_id": call_id, "mcp_tool": name,
-                                 "arguments": arguments, "is_error": bool(raw.get("isError"))})
+        self.invocations.append(
+            {
+                "tool_call_id": call_id,
+                "mcp_tool": name,
+                "arguments": arguments,
+                "is_error": bool(raw.get("isError")),
+            }
+        )
         if any(part.get("type") != "text" for part in raw.get("content", [])):
             raise ValueError("unsupported nontext MCP result")
         return raw

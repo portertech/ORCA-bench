@@ -2,6 +2,7 @@
 
 No provider wire-byte claim. v1 is intentionally unchanged.
 """
+
 import copy
 import json
 from datetime import datetime, timezone
@@ -17,9 +18,19 @@ SCHEMA_VERSION = "llmspec.model-calls.v2"
 def native_message(value):
     msg = object_dict(value)
     # LiteLLM supplies empty diagnostic defaults which are not history fields.
-    allowed = {"role", "content", "tool_calls", "tool_call_id", "reasoning_content", "thinking_blocks", "provider_specific_fields"}
+    allowed = {
+        "role",
+        "content",
+        "tool_calls",
+        "tool_call_id",
+        "reasoning_content",
+        "thinking_blocks",
+        "provider_specific_fields",
+    }
     if isinstance(msg.get("provider_specific_fields"), dict):
-        msg["provider_specific_fields"] = {k: v for k, v in msg["provider_specific_fields"].items() if v is not None}
+        msg["provider_specific_fields"] = {
+            k: v for k, v in msg["provider_specific_fields"].items() if v is not None
+        }
         if not msg["provider_specific_fields"]:
             del msg["provider_specific_fields"]
     for key, val in msg.items():
@@ -72,38 +83,85 @@ class NativeRecorder(Recorder):
         self.pending_requests = 0
         self.uncertain_requests = 0
         self.successful_responses = 0
+        self.usage_totals = {
+            "n_input_tokens": 0,
+            "n_output_tokens": 0,
+            "n_cache_tokens": 0,
+            "cost_usd": None,
+        }
+
+    def observe_usage(self, response):
+        try:
+            raw = object_dict(response).get("usage") or {}
+            details = raw.get("prompt_tokens_details") or {}
+            selected = {
+                "n_input_tokens": raw.get("prompt_tokens"),
+                "n_output_tokens": raw.get("completion_tokens"),
+                "n_cache_tokens": details.get("cached_tokens"),
+            }
+        except (TypeError, ValueError, AttributeError):
+            selected = {key: None for key in self.usage_totals if key != "cost_usd"}
+        for key, count in selected.items():
+            current = self.usage_totals[key]
+            self.usage_totals[key] = (
+                current + count
+                if current is not None and type(count) is int and count >= 0
+                else None
+            )
 
     def extension(self):
         ext = super().extension()
-        ext.update(schema_version=SCHEMA_VERSION, capture_point="litellm_chat_boundary",
-                   finalized=self.finalized, pending_requests=self.pending_requests,
-                   uncertain_requests=self.uncertain_requests,
-                   successful_responses=self.successful_responses)
+        ext.update(
+            schema_version=SCHEMA_VERSION,
+            capture_point="litellm_chat_boundary",
+            finalized=self.finalized,
+            pending_requests=self.pending_requests,
+            uncertain_requests=self.uncertain_requests,
+            successful_responses=self.successful_responses,
+        )
         if len(encode(ext)) > self.byte_limit:
             self.truncated = ext["truncated"] = True
         return ext
 
     def record_native(self, identity, *, model, options, messages, tools, response):
         with self._lock:
+            if identity.request_id in self._settled:
+                return
             self.successful_responses += 1
+            self.observe_usage(response)
             try:
                 result = native_response(response)
                 if result["id"] in self._response_ids:
                     raise Unrepresentable("duplicate response ID")
                 self._response_ids.add(result["id"])
-                call = dict(request_id=identity.request_id,
-                            execution_generation_id=identity.execution_generation_id,
-                            ordinal=identity.ordinal, step_number=identity.ordinal,
-                            requested_model=model, runtime_provider=model.split("/", 1)[0],
-                            runtime_model=result["model"],
-                            messages=copy.deepcopy(messages), tools=copy.deepcopy(tools),
-                            request_options=copy.deepcopy(options),
-                            response={**result, "request_id": identity.request_id,
-                                      "step_number": identity.ordinal})
+                call = dict(
+                    request_id=identity.request_id,
+                    execution_generation_id=identity.execution_generation_id,
+                    ordinal=identity.ordinal,
+                    step_number=identity.ordinal,
+                    requested_model=model,
+                    runtime_provider=model.split("/", 1)[0],
+                    runtime_model=result["model"],
+                    messages=copy.deepcopy(messages),
+                    tools=copy.deepcopy(tools),
+                    request_options=copy.deepcopy(options),
+                    response={
+                        **result,
+                        "request_id": identity.request_id,
+                        "step_number": identity.ordinal,
+                    },
+                )
                 from .validation import validate_call
+
                 validate_call(call)
                 payload = encode(call)
-            except (ValueError, TypeError, KeyError, OverflowError, ValidationError) as error:
+            except (
+                ValueError,
+                TypeError,
+                KeyError,
+                OverflowError,
+                ValidationError,
+            ) as error:
                 self.reject(identity, "native_mapping_" + type(error).__name__)
                 return
             self._settled.add(identity.request_id)

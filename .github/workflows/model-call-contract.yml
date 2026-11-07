@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - 'src/orca_model_calls/**'
+      - 'src/orca_grafana_mcp/**'
       - 'tests/orca_model_calls/**'
+      - 'tests/orca_grafana_mcp/**'
+      - 'tools/grafana-mcp-runtime/**'
+      - 'configs/*grafana_mcp*'
+      - 'docs/grafana-mcp-agent.md'
       - 'tests/fixtures/**'
       - 'schemas/**'
       - 'tools/agento11y-export/**'
@@ -14,7 +19,7 @@ on:
       - 'uv.lock'
       - '.github/workflows/model-call-contract.yml'
   push:
-    branches: [agent-o11y, main]
+    branches: [agent-o11y, grafana-mcp, main]
 
 permissions:
   contents: read
@@ -31,8 +36,27 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: uv sync --locked --group tests
-      - run: uv run --locked pytest -q tests/orca_model_calls
+      - run: uv run --locked pytest -q tests/orca_model_calls tests/orca_grafana_mcp
       - run: uv build --wheel
+      - run: |
+          uv run --locked python tools/grafana-mcp-runtime/build_schema.py
+          git diff --exit-code -- schemas tools/agento11y-export/schema-v2.json
+  mcp-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
+      - run: |
+          uv venv --python 3.13 .cache/mcp-worker
+          uv pip install --python .cache/mcp-worker/bin/python --require-hashes -r tools/grafana-mcp-runtime/requirements.lock
+          uv pip install --python .cache/mcp-worker/bin/python pytest==8.4.2
+          .cache/mcp-worker/bin/python tools/grafana-mcp-runtime/prepare.py .cache/mcp-protocol --server-only
+      - run: .cache/mcp-worker/bin/python -m pytest -q tests/orca_grafana_mcp/test_mcp_protocol.py
+        env:
+          PYTHONPATH: src
+          ORCA_GRAFANA_MCP_BINARY: ${{ github.workspace }}/.cache/mcp-protocol/mcp-grafana
   exporter:
     runs-on: ubuntu-latest
     defaults:

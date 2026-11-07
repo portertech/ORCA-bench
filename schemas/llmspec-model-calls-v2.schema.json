@@ -660,6 +660,18 @@
             },
             "tool_choice": {
               "const": "auto"
+            },
+            "allowed_openai_params": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "thinking",
+                  "reasoning_effort",
+                  "tools",
+                  "tool_choice"
+                ]
+              }
             }
           },
           "required": [
