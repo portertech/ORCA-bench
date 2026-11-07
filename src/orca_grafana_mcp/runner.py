@@ -40,7 +40,16 @@ def usage(recorder):
 
 async def run(config, *, client=None, completion=None):
     root = Path(config["output_dir"])
+    if (root / "llmspec-trajectory.atif.json").exists() or (
+        root / "trajectory.json"
+    ).exists():
+        raise FileExistsError("native capture requires a fresh execution directory")
     root.mkdir(parents=True, exist_ok=True)
+    # Exclusive, persistent marker also protects a kill before the first checkpoint.
+    fd = os.open(
+        root / ".native-execution.lock", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+    )
+    os.close(fd)
     recorder = NativeRecorder(
         byte_limit=config.get("capture_byte_limit", 67108864),
         call_byte_limit=config.get("capture_call_byte_limit", 4194304),
@@ -219,6 +228,7 @@ async def run(config, *, client=None, completion=None):
         else:
             await loop(client)
     except BaseException as error:
+        success = False
 
         def diagnosis(error):
             result = {"type": type(error).__name__}

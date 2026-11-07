@@ -154,6 +154,10 @@ def test_real_native_two_turn_boundary(tmp_path, monkeypatch, provider):
         assert requests[0].get("reasoning_effort") == "medium"
     assert client.invocations[0]["mcp_tool"] == "list_datasources"
     assert (tmp_path / "report.md").read_text().startswith("# Synthetic RCA")
+    original = (tmp_path / "logs/llmspec-trajectory.atif.json").read_bytes()
+    with pytest.raises(FileExistsError):
+        asyncio.run(run(config, client=client, completion=transport))
+    assert (tmp_path / "logs/llmspec-trajectory.atif.json").read_bytes() == original
     artifact = validate(
         loads((tmp_path / "logs/llmspec-trajectory.atif.json").read_bytes())
     )

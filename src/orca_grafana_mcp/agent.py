@@ -50,6 +50,7 @@ class GrafanaMCPAgent(BaseAgent):
         if type(max_turns) is not int or not 1 <= max_turns <= 200:
             raise ValueError("max_turns must be between 1 and 200")
         self.runtime_dir = Path(runtime_dir).resolve()
+        self._ran = False
         self.settings = {
             "max_turns": max_turns,
             "capture_byte_limit": capture_byte_limit,
@@ -154,6 +155,11 @@ class GrafanaMCPAgent(BaseAgent):
             raise RuntimeError("offline native MCP runtime installation failed")
 
     async def run(self, instruction, environment, context):
+        if self._ran:
+            raise RuntimeError(
+                "native MCP agent does not support reuse or multi-step execution"
+            )
+        self._ran = True
         config = {
             **self.settings,
             "model": self.model_name,
