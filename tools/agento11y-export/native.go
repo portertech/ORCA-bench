@@ -79,6 +79,9 @@ func nativeProjection(g *a.Generation, raw []byte) error {
 	}
 	ext := value.(map[string]any)["extra"].(map[string]any)["llmspec_model_calls"].(map[string]any)
 	calls := ext["calls"].([]any)
+	// v2 uses LiteLLM's normalized prompt_tokens: cache buckets are subsets,
+	// not additions. Declare the public SDK contract instead of provider heuristics.
+	g.Usage.InputSemantics = a.TokenInputSemanticsInclusive
 	g.Metadata["capture_schema"] = "llmspec.model-calls.v2"
 	g.Metadata["native_projection"] = "SDK conversation view; exact provider history in original artifact"
 	if len(calls) == 0 {

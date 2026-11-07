@@ -26,7 +26,7 @@ func TestNativeProjectionAndSchema(t *testing.T) {
 	if artifact.Extra.Calls.incomplete() {
 		t.Fatal("complete fixture marked incomplete")
 	}
-	g := a.Generation{Metadata: map[string]any{}}
+	g := a.Generation{Metadata: map[string]any{}, Usage: a.TokenUsage{InputTokens: 12, OutputTokens: 2, CacheReadInputTokens: 4}}
 	if err := nativeProjection(&g, raw); err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +35,9 @@ func TestNativeProjectionAndSchema(t *testing.T) {
 	}
 	if g.Output[0].Parts[1].ToolCall.ID != "synthetic-tool-1" || g.Output[1].Parts[0].ToolResult.ToolCallID != "synthetic-tool-1" {
 		t.Fatal("lost native tool associations")
+	}
+	if g.Usage.InputSemantics != a.TokenInputSemanticsInclusive || g.Usage.Normalize().TotalTokens != 14 {
+		t.Fatal("native cache buckets must remain subsets of inclusive input tokens")
 	}
 	if _, err := json.Marshal(g); err != nil {
 		t.Fatal(err)
