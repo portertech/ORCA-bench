@@ -1,0 +1,17 @@
+# Native MCP pilot; normal task timeout/resources and official verifier.
+# Prepare .cache/grafana-mcp-runtime/linux-amd64 before invoking Harbor.
+# Needs the same snapshot cache mount as existing released-task smoke configs.
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_grafana_mcp.agent:GrafanaMCPAgent
+    model_name: anthropic/claude-sonnet-5-5
+    kwargs:
+      max_turns: 100
+      max_tokens: 16384
+      thinking:
+        type: between_tools
+tasks:
+  - name: orca-bench/05216f608f940a48
+    ref: latest

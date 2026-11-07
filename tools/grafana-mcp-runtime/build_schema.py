@@ -17,7 +17,9 @@ def obj(properties, required=None):
 
 string = {"type": "string", "minLength": 1}
 function = obj({"name": string, "arguments": {"type": "string"}})
-defs["toolCall"] = obj({"id": string, "type": {"const": "function"}, "function": function})
+defs["toolCall"] = obj({"id": string, "type": {"const": "function"}, "function": function,
+                        "index": {"type": "integer", "minimum": 0},
+                        "caller": obj({"type": {"const": "direct"}})}, ["id", "type", "function"])
 thinking = {"oneOf": [
     obj({"type": {"const": "thinking"}, "thinking": {"type": "string"}, "signature": {"type": "string"}}),
     obj({"type": {"const": "redacted_thinking"}, "data": {"type": "string"}}),
@@ -25,6 +27,7 @@ thinking = {"oneOf": [
 assistant = obj({"role": {"const": "assistant"}, "content": {"type": ["string", "null"]},
                  "reasoning_content": {"type": "string"},
                  "thinking_blocks": {"type": "array", "items": thinking},
+                 "provider_specific_fields": obj({"thinking_blocks": {"type": "array", "items": thinking}}, []),
                  "tool_calls": {"type": "array", "items": {"$ref": "#/$defs/toolCall"}}},
                 ["role", "content"])
 defs["assistant"] = assistant

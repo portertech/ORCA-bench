@@ -1,0 +1,16 @@
+# Native MCP pilot; normal task timeout/resources and official verifier.
+# Alias FIREWORKS_API_KEY -> FIREWORKS_AI_API_KEY in the launcher, not this file.
+jobs_dir: jobs
+n_concurrent_trials: 1
+n_attempts: 1
+agents:
+  - import_path: orca_grafana_mcp.agent:GrafanaMCPAgent
+    model_name: fireworks_ai/accounts/fireworks/models/qwen3p8-max
+    kwargs:
+      max_turns: 100
+      max_tokens: 16384
+      temperature: 1
+      reasoning_effort: medium
+tasks:
+  - name: orca-bench/05216f608f940a48
+    ref: latest

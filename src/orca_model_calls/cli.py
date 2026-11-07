@@ -18,8 +18,11 @@ def main():
         # JSON schema exception messages can include instance prompt contents.
         parser.exit(1, f"invalid artifact ({type(exc).__name__})\n")
     ext = artifact["extra"]["llmspec_model_calls"]
+    status = ""
+    if ext["schema_version"] == "llmspec.model-calls.v2":
+        status = f" finalized={ext['finalized']} pending={ext['pending_requests']} uncertain={ext['uncertain_requests']}"
     print(
-        f"valid bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} calls={len(ext['calls'])} truncated={ext['truncated']} dropped={ext['dropped_calls']} rejected={ext['rejected_calls']}"
+        f"valid bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} calls={len(ext['calls'])} truncated={ext['truncated']} dropped={ext['dropped_calls']} rejected={ext['rejected_calls']}{status}"
     )
 
 

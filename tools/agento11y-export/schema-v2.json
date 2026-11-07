@@ -141,6 +141,56 @@
             ]
           }
         },
+        "provider_specific_fields": {
+          "type": "object",
+          "properties": {
+            "thinking_blocks": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "thinking"
+                      },
+                      "thinking": {
+                        "type": "string"
+                      },
+                      "signature": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "thinking",
+                      "signature"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "redacted_thinking"
+                      },
+                      "data": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "data"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
         "tool_calls": {
           "type": "array",
           "items": {
@@ -232,6 +282,56 @@
                   }
                 ]
               }
+            },
+            "provider_specific_fields": {
+              "type": "object",
+              "properties": {
+                "thinking_blocks": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "const": "thinking"
+                          },
+                          "thinking": {
+                            "type": "string"
+                          },
+                          "signature": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "thinking",
+                          "signature"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "const": "redacted_thinking"
+                          },
+                          "data": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "data"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [],
+              "additionalProperties": false
             },
             "tool_calls": {
               "type": "array",
@@ -674,6 +774,22 @@
           "required": [
             "name",
             "arguments"
+          ],
+          "additionalProperties": false
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "caller": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "direct"
+            }
+          },
+          "required": [
+            "type"
           ],
           "additionalProperties": false
         }

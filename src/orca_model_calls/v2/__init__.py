@@ -17,7 +17,11 @@ SCHEMA_VERSION = "llmspec.model-calls.v2"
 def native_message(value):
     msg = object_dict(value)
     # LiteLLM supplies empty diagnostic defaults which are not history fields.
-    allowed = {"role", "content", "tool_calls", "tool_call_id", "reasoning_content", "thinking_blocks"}
+    allowed = {"role", "content", "tool_calls", "tool_call_id", "reasoning_content", "thinking_blocks", "provider_specific_fields"}
+    if isinstance(msg.get("provider_specific_fields"), dict):
+        msg["provider_specific_fields"] = {k: v for k, v in msg["provider_specific_fields"].items() if v is not None}
+        if not msg["provider_specific_fields"]:
+            del msg["provider_specific_fields"]
     for key, val in msg.items():
         if key not in allowed and val not in (None, [], {}):
             raise Unrepresentable("unmodeled native message field")
@@ -99,8 +103,8 @@ class NativeRecorder(Recorder):
                 from .validation import validate_call
                 validate_call(call)
                 payload = encode(call)
-            except (ValueError, TypeError, KeyError, OverflowError, ValidationError):
-                self.reject(identity)
+            except (ValueError, TypeError, KeyError, OverflowError, ValidationError) as error:
+                self.reject(identity, "native_mapping_" + type(error).__name__)
                 return
             self._settled.add(identity.request_id)
             if len(payload) > self.call_byte_limit:
