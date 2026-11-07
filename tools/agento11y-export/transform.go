@@ -125,6 +125,11 @@ func plans(trials []loadedTrial, opts options) ([]experimentPlan, error) {
 				usage.CacheReadInputTokens = int64(*r.Context.Cache)
 			}
 			generation := a.Generation{ID: executionID, ConversationID: executionID, AgentName: r.Agent.Name, AgentVersion: r.Agent.Version, Mode: a.GenerationModeSync, Model: model, Input: []a.Message{a.UserTextMessage(t.Input)}, Output: []a.Message{a.AssistantTextMessage(t.Transcript)}, StartedAt: t.AgentStart, CompletedAt: t.AgentEnd, Usage: usage, Tags: map[string]string{"harbor_job": t.Job, "trial": r.ID, "task": r.Task, "model": t.Model, "producer_version": t.Artifact.Agent.Version, "outcome": outcome}, Metadata: metadata}
+			if ext.Version == "llmspec.model-calls.v2" {
+				if err := nativeProjection(&generation, t.ArtifactBytes); err != nil {
+					return nil, err
+				}
+			}
 			duration := int(t.AgentEnd.Sub(t.AgentStart).Milliseconds())
 			trial := plannedTrial{Trial: a.UpsertTrialRequest{TrialID: r.ID, TestCaseID: r.Task, Attempt: attempts[attemptKey], Status: "running", ConversationID: executionID, Metadata: metadata}, Generation: generation, Score: a.ScoreItem{ScoreID: stableID(runID, r.ID, executionID, opts.EvaluatorID, opts.EvaluatorVersion, opts.ScoreKey), GenerationID: executionID, ConversationID: executionID, RunID: runID, TrialID: r.ID, TestCaseID: r.Task, EvaluatorID: opts.EvaluatorID, EvaluatorVersion: opts.EvaluatorVersion, ScoreKey: opts.ScoreKey, Value: a.NumberScoreValue(t.Reward), Passed: &passed, Explanation: fmt.Sprintf("ORCA verifier reward %.6g; benchmark_passed=%t", t.Reward, passed), Metadata: metadata, CreatedAt: &t.End}, Terminal: a.UpdateTrialRequest{Status: status, Error: terminalError, ConversationID: executionID, Cost: r.Context.Cost, InputTokens: r.Context.Input, OutputTokens: r.Context.Output, DurationMillis: &duration}, ArtifactSHA: t.Hash, ArtifactBytes: len(t.ArtifactBytes), Content: t.ArtifactBytes}
 			plan.Trials = append(plan.Trials, trial)

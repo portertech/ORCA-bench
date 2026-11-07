@@ -17,6 +17,9 @@ import (
 //go:embed schema.json
 var schemaBytes []byte
 
+//go:embed schema-v2.json
+var schemaV2Bytes []byte
+
 // strictJSON also rejects duplicate keys, including inside inert metadata.
 func strictJSON(raw []byte) (any, error) {
 	d := json.NewDecoder(bytes.NewReader(raw))
@@ -96,6 +99,11 @@ type artifact struct {
 	} `json:"extra"`
 }
 type extension struct {
+	Version     string      `json:"schema_version"`
+	Finalized   bool        `json:"finalized"`
+	Pending     int         `json:"pending_requests"`
+	Uncertain   int         `json:"uncertain_requests"`
+	Successful  int         `json:"successful_responses"`
 	ExecutionID string      `json:"execution_generation_id"`
 	ByteLimit   int64       `json:"capture_byte_limit"`
 	Truncated   bool        `json:"truncated"`
@@ -120,7 +128,10 @@ type modelCall struct {
 	} `json:"response"`
 }
 
-func (e extension) incomplete() bool { return e.Truncated || e.Dropped > 0 || e.Rejected > 0 }
+func (e extension) incomplete() bool {
+	return e.Truncated || e.Dropped > 0 || e.Rejected > 0 ||
+		(e.Version == "llmspec.model-calls.v2" && (!e.Finalized || e.Pending > 0 || e.Uncertain > 0))
+}
 
 // canonicalSize matches Python ensure_ascii=False compact JSON string escaping.
 // Numbers in capture accounting are integers; inert numeric metadata uses its JSON spelling.
@@ -171,7 +182,15 @@ func validateArtifact(raw []byte) (artifact, error) {
 	if err != nil {
 		return a, err
 	}
-	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaBytes))
+	selectedSchema := schemaBytes
+	if root, ok := v.(map[string]any); ok {
+		if extra, ok := root["extra"].(map[string]any); ok {
+			if ext, ok := extra["llmspec_model_calls"].(map[string]any); ok && ext["schema_version"] == "llmspec.model-calls.v2" {
+				selectedSchema = schemaV2Bytes
+			}
+		}
+	}
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(selectedSchema))
 	if err != nil {
 		return a, err
 	}
@@ -215,7 +234,11 @@ func validateArtifact(raw []byte) (artifact, error) {
 	}
 	root := v.(map[string]any)
 	ext := root["extra"].(map[string]any)["llmspec_model_calls"]
-	if !integerNotation(ext) {
+	if e.Version == "llmspec.model-calls.v2" {
+		if err := validateNative(ext.(map[string]any), e); err != nil {
+			return a, err
+		}
+	} else if !integerNotation(ext) {
 		return a, errors.New("extension numbers must use integer JSON notation")
 	}
 	if canonicalSize(ext) > e.ByteLimit && !e.Truncated {
